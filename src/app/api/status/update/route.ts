@@ -3,7 +3,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
-import { ensureDaemonRunning } from '@/lib/rpc-daemon'
+import { daemonSyncUser } from '@/lib/daemon-bridge'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 15
@@ -73,8 +73,7 @@ export async function POST(req: Request) {
     // If Status is ON and user is authenticated with Discord: sync Status
     // (RPC will remain in whatever state it was in; if RPC is OFF, RPC stays 100% OFF)
     if (isStatusEnabled && session.discordAccessToken) {
-      const daemon = ensureDaemonRunning()
-      await daemon.syncUser(session.userId)
+      await daemonSyncUser(session.userId)
     }
 
     return NextResponse.json({

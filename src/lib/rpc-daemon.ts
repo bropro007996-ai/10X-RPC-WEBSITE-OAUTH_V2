@@ -28,6 +28,11 @@ interface ActiveUserSocket {
   connected: boolean
   lastConnectedAt?: Date
   isConnecting: boolean
+  // Track previous enabled state to detect TRANSITIONS (ON→OFF) and force-clear Discord.
+  // Without this, the hash-dedup in pushPresenceForUser can skip the clear-push when
+  // the computed activities happen to match what's already cached.
+  lastRpcActive: boolean
+  lastStatusActive: boolean
 }
 
 export class RpcDaemon {
@@ -272,6 +277,8 @@ export class RpcDaemon {
           lastActivitiesHash: '',
           connected: false,
           isConnecting: false,
+          lastRpcActive: false,
+          lastStatusActive: false,
         }
         this.sockets.set(session.userId, userSock)
       }
@@ -411,6 +418,8 @@ export class RpcDaemon {
         lastActivitiesHash: '',
         connected: false,
         isConnecting: false,
+        lastRpcActive: false,
+        lastStatusActive: false,
       }
       this.sockets.set(userId, userSock)
     }
@@ -681,6 +690,14 @@ export class RpcDaemon {
     const isRpcActive = !!(session.rpcEnabled && rpcConfig?.enabled)
     const isStatusActive = !!session.statusEnabled
 
+    // CRITICAL: Detect state TRANSITIONS to force a re-push even when the activities
+    // hash matches. This guarantees Discord gets cleared when RPC or Status is disabled.
+    // Without this, disabling RPC while the hash coincidentally matches (e.g. both
+    // produced empty activities) would skip the OP 3 and leave stale presence on Discord.
+    const rpcTurnedOff = userSock.lastRpcActive && !isRpcActive
+    const statusTurnedOff = userSock.lastStatusActive && !isStatusActive
+    const forceDueToTransition = rpcTurnedOff || statusTurnedOff
+
     const activePlatform = isStatusActive
       ? (session.statusPlatform || 'mobile')
       : (isRpcActive ? (rpcConfig?.platform || 'desktop') : (session.statusPlatform || 'mobile'))
@@ -698,8 +715,9 @@ export class RpcDaemon {
     const status = isStatusActive ? (session.userStatus || 'online') : (isRpcActive ? 'online' : 'invisible')
     const activitiesHash = JSON.stringify({ status, activities })
 
-    // Avoid spamming identical OP 3 payloads unless forced (prevents rate limits)
-    if (!force && userSock.lastActivitiesHash === activitiesHash && userSock.lastStatus === status) {
+    // Avoid spamming identical OP 3 payloads unless forced.
+    // force = explicit force param (from syncUser on UI action) OR a state transition (ON→OFF).
+    if (!force && !forceDueToTransition && userSock.lastActivitiesHash === activitiesHash && userSock.lastStatus === status) {
       return
     }
 
@@ -707,7 +725,10 @@ export class RpcDaemon {
     if (!userSock.ws || userSock.ws.readyState !== WebSocket.OPEN) return
 
     try {
-      console.log(`[10X RPC Daemon] Sending OP 3 for user ${userId}: status=${status}, activities=${JSON.stringify(activities)}`)
+      const reason = forceDueToTransition
+        ? ` (state transition: rpc ${userSock.lastRpcActive}→${isRpcActive}, status ${userSock.lastStatusActive}→${isStatusActive})`
+        : ''
+      console.log(`[10X RPC Daemon] Sending OP 3 for user ${userId}: status=${status}, activities=${JSON.stringify(activities)}${reason}`)
       userSock.ws.send(JSON.stringify({
         op: 3,
         d: {
@@ -719,6 +740,9 @@ export class RpcDaemon {
       }))
       userSock.lastStatus = status
       userSock.lastActivitiesHash = activitiesHash
+      // Track the new state so the next tick can detect another transition
+      userSock.lastRpcActive = isRpcActive
+      userSock.lastStatusActive = isStatusActive
     } catch (err) {
       console.error(`[10X RPC Daemon] Failed to send OP 3 for user ${userId}:`, err)
     }

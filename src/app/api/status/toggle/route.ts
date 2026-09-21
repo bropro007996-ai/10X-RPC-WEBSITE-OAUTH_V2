@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
-import { ensureDaemonRunning } from '@/lib/rpc-daemon'
+import { daemonSyncUser } from '@/lib/daemon-bridge'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -47,8 +47,7 @@ export async function POST(req: Request) {
 
       // 4. Sync Gateway Daemon immediately
       if (session.discordAccessToken) {
-        const daemon = ensureDaemonRunning()
-        await daemon.syncUser(session.userId)
+        await daemonSyncUser(session.userId)
       }
 
       return NextResponse.json({
@@ -69,8 +68,7 @@ export async function POST(req: Request) {
 
       // 2. Sync Gateway Daemon (if RPC is still on, RPC keeps running; if RPC is off, socket cleans up)
       if (session.discordAccessToken) {
-        const daemon = ensureDaemonRunning()
-        await daemon.syncUser(session.userId)
+        await daemonSyncUser(session.userId)
       }
 
       return NextResponse.json({

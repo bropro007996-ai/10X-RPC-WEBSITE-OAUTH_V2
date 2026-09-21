@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
-import { ensureDaemonRunning } from '@/lib/rpc-daemon'
+import { daemonSyncUser, daemonStopUserRpc } from '@/lib/daemon-bridge'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -60,10 +60,9 @@ export async function POST(req: Request) {
         },
       })
 
-      // 4. Start RPC via single managed Gateway daemon using the latest saved DB config
+      // 4. Start RPC via the Render daemon (long-lived process owns the gateway socket)
       if (session.discordAccessToken) {
-        const daemon = ensureDaemonRunning()
-        await daemon.syncUser(session.userId)
+        await daemonSyncUser(session.userId)
       }
 
       return NextResponse.json({
@@ -102,10 +101,10 @@ export async function POST(req: Request) {
         })
       }
 
-      // 2. Clear Discord Rich Presence completely via daemon (stops all timers & background updates)
+      // 2. Clear Discord Rich Presence completely via the Render daemon
+      //    (stops all timers & background updates for RPC; preserves Status if still ON)
       if (session.discordAccessToken) {
-        const daemon = ensureDaemonRunning()
-        await daemon.stopUserRpc(session.userId)
+        await daemonStopUserRpc(session.userId)
       }
 
       return NextResponse.json({

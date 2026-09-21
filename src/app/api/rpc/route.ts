@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
-import { ensureDaemonRunning } from '@/lib/rpc-daemon'
+import { daemonSyncUser, daemonStopUserRpc } from '@/lib/daemon-bridge'
 import { resolveRpcActivityName } from '@/lib/constants'
 
 export const dynamic = 'force-dynamic'
@@ -94,11 +94,10 @@ export async function POST(req: Request) {
     // If enabled: starts RPC using latest saved DB config (no glitches, exact timestamps)
     // If disabled: completely stops RPC, clears Rich Presence from Discord, stops all timers
     if (session.discordAccessToken) {
-      const daemon = ensureDaemonRunning()
       if (enabled) {
-        await daemon.syncUser(session.userId)
+        await daemonSyncUser(session.userId)
       } else {
-        await daemon.stopUserRpc(session.userId)
+        await daemonStopUserRpc(session.userId)
       }
     }
 

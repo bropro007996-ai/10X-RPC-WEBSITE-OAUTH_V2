@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
-import { ensureDaemonRunning } from '@/lib/rpc-daemon'
+import { daemonSyncUser } from '@/lib/daemon-bridge'
 
 export const dynamic = 'force-dynamic'
 
@@ -16,8 +16,7 @@ export async function POST() {
   })
 
   if (session.discordAccessToken) {
-    const daemon = ensureDaemonRunning()
-    await daemon.syncUser(session.userId)
+    await daemonSyncUser(session.userId)
   }
 
   return NextResponse.json({ ok: true, message: 'Custom status cleared' })
