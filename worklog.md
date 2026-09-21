@@ -176,3 +176,33 @@ Stage Summary:
 - /api/uptime LIVE at https://10x-rpc.vercel.app/api/uptime (public JSON, no auth)
 - All 4 services showing operational in production.
 - Auto-refreshes every 30s; no authentication needed.
+
+---
+Task ID: 6
+Agent: main (Z.ai Code)
+Task: Fix the high Neon Postgres latency (2040ms) shown on the /uptime page — Neon free-tier cold-start issue.
+
+Work Log:
+- Diagnosed via user screenshot: /uptime showed Neon at 2040ms while all other services were fast (1ms, 191ms, 173ms). Root cause: Neon free-tier auto-suspends compute after ~5 min inactivity → first query after suspend takes 1-3s to wake.
+- Attempted Vercel Cron (vercel.json with */4 * * * *) — REJECTED: "Hobby accounts are limited to daily cron jobs."
+- Solution: mutual keep-alive loop using the Render 24/7 daemon (long-lived process) to ping Vercel every 4 min:
+  1. Forked Sanjay007yt/10X-RPC-WEBSITE-OAUTH-BACKEND-SERVER_V2 → bropro007996-ai/10X-RPC-WEBSITE-OAUTH-BACKEND-SERVER_V2 (via GitHub API).
+  2. Added keep-alive pinger to index.js: setInterval every 4 min that fetches Vercel /api/keep-awake via https.get. Also fires once after 10s startup delay.
+  3. Upgraded Vercel /api/keep-awake route to do BOTH: Neon DB query (db.session.count) + Render /health fetch. So one ping keeps both services warm.
+  4. Pushed index.js to fork via GitHub Contents API (base64 PUT).
+  5. Updated Render service repo URL to the fork (PATCH /v1/services/{id}).
+  6. Triggered deploy with clearCache.
+- First deploy crashed (server_failed, nonZeroExit: 1). Debug: Render events API showed repeated crash/restart cycle. Root cause: used `http.get` for an HTTPS URL → Node.js throws "Protocol https: not supported" synchronously → uncaught exception → process exit 1.
+- Fix: added `const https = require('https')` and changed `http.get(KEEPALIVE_URL)` → `https.get(KEEPALIVE_URL)`. Pushed fix via GitHub API.
+- Second deploy: build succeeded (75s), health check returned 200 (uptime 78s). Render backend live.
+- Verified keep-alive loop working:
+  * Vercel /api/keep-awake: database=438ms, render=93ms (both OK)
+  * /api/uptime: Neon dropped from 2040ms → 221ms (9.2x faster), Render 82ms, Discord 20ms
+- Frontend also redeployed: improved /api/keep-awake route + vercel.json with once-daily cron (backup).
+
+Stage Summary:
+- Neon latency: 2040ms → 221ms (9.2x improvement). All services now <250ms.
+- Keep-alive loop: Render pings Vercel every 4 min → Vercel queries Neon + pings Render → both stay warm.
+- Render backend: running from fork (bropro007996-ai/10X-RPC-WEBSITE-OAUTH-BACKEND-SERVER_V2) with keep-alive pinger.
+- Vercel frontend: improved /api/keep-awake route (pings both Neon + Render).
+- vercel.json: once-daily cron as backup (Hobby plan limitation).
