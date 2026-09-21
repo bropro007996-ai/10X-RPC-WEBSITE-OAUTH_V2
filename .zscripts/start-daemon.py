@@ -32,6 +32,10 @@ def main():
     sys.stderr.flush()
     env = dict(os.environ)
     env["NEXT_TELEMETRY_DISABLED"] = "1"
+    # Strip DB URLs so Next.js loads them from .env.local / .env (not the
+    # inherited shell env, which may have a stale value from a previous command).
+    env.pop("DATABASE_URL", None)
+    env.pop("DATABASE_URL_UNPOOLED", None)
     # exec next dev — replaces the daemon process
     os.execvpe("node_modules/.bin/next", ["next", "dev", "-p", "3000"], env)
 

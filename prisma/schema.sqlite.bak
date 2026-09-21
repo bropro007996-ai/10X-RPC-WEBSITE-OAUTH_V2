@@ -1,17 +1,12 @@
-// 10X RPC — Production Prisma schema (PostgreSQL / Neon)
-// Swap this over prisma/schema.prisma before deploying to Vercel + Render.
-// Run:  bash scripts/use-postgres.sh
-// Then: bun run db:push   (with DATABASE_URL + DATABASE_URL_UNPOOLED set to Neon)
+// 10X RPC — Prisma schema (SQLite for local/dev sandbox)
 
 generator client {
-  provider        = "prisma-client-js"
-  binaryTargets   = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x", "debian-openssl-1.1.x", "rhel-openssl-3.0.x", "rhel-openssl-1.1.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL_UNPOOLED")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -21,8 +16,8 @@ model User {
   discriminator String?
   avatar        String?
   backgroundUrl String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   sessions        Session[]
   rpcConfigs      RpcConfig[]

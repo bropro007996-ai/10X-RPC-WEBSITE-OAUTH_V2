@@ -83,3 +83,28 @@ Stage Summary:
 - Active sandbox: still SQLite + demo mode (unchanged, preview works).
 - Production path: bash scripts/use-postgres.sh -> push to GitHub -> Vercel import -> render.yaml Blueprint on backend repo -> Neon Postgres shared.
 - All artifacts in repo: DEPLOY.md, .env.production.example, deploy/render.yaml, prisma/schema.prod.prisma, scripts/{use-postgres,use-sqlite}.sh.
+
+---
+Task ID: 3
+Agent: main (Z.ai Code)
+Task: Connect the sandbox to the user's real Neon Postgres database to verify production DB works end-to-end before deploying.
+
+Work Log:
+- User provided Neon DATABASE_URL (pooled) + commented-out DATABASE_URL_UNPOOLED (direct) in chat. Treated password as exposed — warned user to rotate after.
+- Verified .env is git-tracked (committed earlier); .env.local is gitignored. Put Neon credentials in .env.local (safe — not committed).
+- Ran scripts/use-postgres.sh: backed up SQLite schema to prisma/schema.sqlite.bak, swapped prisma/schema.prisma to the PostgreSQL schema (provider=postgresql, directUrl=env(DATABASE_URL_UNPOOLED)).
+- Pushed schema to Neon: bun run db:push with both DATABASE_URL (pooled) + DATABASE_URL_UNPOOLED (direct) exported inline → all 8 tables created in Neon (User, Session, RpcConfig, GameConfig, RotatorPreset, GlobalConfig, Trial, OAuthState).
+- Hit a PrismaClientInitializationError: "URL must start with postgresql://". Root cause: DATABASE_URL=file:... (SQLite) was inherited from the Bash shell environment (exported in an earlier command for db:push), and the Python double-fork daemon passed it to `next dev`. Next.js's .env.local loading does NOT override existing process.env values.
+- Fix 1: Removed DATABASE_URL from tracked .env (replaced with a comment explaining it's in .env.local).
+- Fix 2: Updated .zscripts/start-daemon.py to explicitly pop DATABASE_URL + DATABASE_URL_UNPOOLED from the env dict before execvpe, so Next.js always loads them from .env.local.
+- After fix: demo login succeeded → created DemoUser + trial + RpcConfig (VS Code) + 3 RotatorPresets + 1 Session all in Neon.
+- Direct Neon DB check confirmed: Users:1 (DemoUser), Trials:1, RpcConfigs:1, RotatorPresets:3, Sessions:1.
+- Browser golden path verified against Neon: dashboard, games (12), rotator (3 presets) — zero page errors.
+- Lint still passes (no changes to TS code).
+
+Stage Summary:
+- Sandbox now runs against the REAL Neon Postgres database (not SQLite). All data persists in Neon.
+- The user can verify the full app against the production DB before deploying.
+- To deploy for real: push the repo to GitHub → Vercel import (env vars from .env.production.example, with the Neon URLs) → Render Blueprint (deploy/render.yaml in backend repo).
+- REMINDER: rotate the Neon password before production deploy (it was shared in chat).
+- To revert sandbox to SQLite demo: bash scripts/use-sqlite.sh, remove .env.local, restart.
