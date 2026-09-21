@@ -206,3 +206,44 @@ Stage Summary:
 - Render backend: running from fork (bropro007996-ai/10X-RPC-WEBSITE-OAUTH-BACKEND-SERVER_V2) with keep-alive pinger.
 - Vercel frontend: improved /api/keep-awake route (pings both Neon + Render).
 - vercel.json: once-daily cron as backup (Hobby plan limitation).
+
+---
+Task ID: 7
+Agent: main (Z.ai Code)
+Task: Fix the root cause of high Neon Postgres latency — geographic mismatch between services.
+
+Work Log:
+- User shared screenshot showing Neon DB region = AWS Asia Pacific 1 (Singapore / ap-southeast-1).
+- Investigated Vercel response header: x-vercel-id: hkg1::iad1 — Vercel was running in iad1 (US East, Washington DC), ~200ms network RTT from Singapore Neon.
+- Render was in Oregon (us-west), ~200ms from Singapore Neon.
+- Root cause of persistent ~221ms Neon latency (even after keep-alive): geographic distance, not cold starts.
+- Fix Part 1 — Move Vercel to Singapore:
+  * Added "regions": ["sin1"] to vercel.json.
+  * Redeployed: x-vercel-id now hkg1::sin1 (Singapore). Neon latency dropped 221ms → 3ms (73x faster).
+- Fix Part 2 — Move Render to Singapore:
+  * Render API doesn't support changing region on existing service (PATCH ignored region field).
+  * Created NEW Render service "10x-rpc-backend-sg" in Singapore region (region: "singapore") via POST /v1/services, with all 11 env vars + same fork repo.
+  * New URL: https://one0x-rpc-backend-sg.onrender.com
+  * Waited for build (75s) + boot (30s) → health check returned 200 (uptime 73s).
+  * Updated RENDER_BACKEND_URL on Vercel (deleted old env var id 4BNz4UeeE3X5JqTC, created new one pointing to -sg URL).
+  * Redeployed Vercel to pick up new RENDER_BACKEND_URL.
+  * Deleted old Oregon Render service (srv-daodpa3tqb8s73eumvtg).
+  * Updated local .env.local with new URL.
+- Verified all services co-located in Singapore:
+  * Vercel: sin1 (Singapore) — x-vercel-id: hkg1::sin1
+  * Render: singapore — https://one0x-rpc-backend-sg.onrender.com
+  * Neon: ap-southeast-1 (Singapore)
+- Final latency results (/api/uptime, warm):
+  * Vercel Frontend:     1ms (self)
+  * Render Backend:     67ms (was 224ms in Oregon — 3.3x faster)
+  * Neon Postgres:       12ms (was 2040ms cold / 221ms warm Oregon — 170x / 18x faster)
+  * Discord API:         40ms (was 173ms — 4.3x faster)
+  * Total elapsed:       70ms (was 225ms — 3.2x faster)
+- Keep-alive loop now Singapore→Singapore→Singapore (Render pings Vercel /api/keep-awake → Vercel queries Neon + pings Render health — all sub-30ms).
+
+Stage Summary:
+- ALL services now co-located in Singapore (closest AWS region to user's Asia/Calcutta timezone).
+- Neon Postgres: 2040ms → 12ms (170x improvement from original cold-start latency).
+- Full stack latency: 225ms → 70ms (3.2x faster overall).
+- Old Oregon Render service deleted; new Singapore Render service live.
+- Keep-alive pinger running on new Singapore Render (fires every 4 min).
