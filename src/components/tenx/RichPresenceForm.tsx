@@ -5,7 +5,20 @@ import { toast } from 'sonner'
 import { api, type RpcConfig } from '@/lib/api-client'
 import { PurpleSwitch } from './ui'
 import { ACTIVITY_TYPES, PLATFORMS, PLATFORM_GROUPS } from '@/lib/constants'
-import { Gamepad2, ChevronDown, ChevronsDown } from 'lucide-react'
+import { Gamepad2, ChevronDown, ChevronsDown, Stethoscope, X } from 'lucide-react'
+
+interface DiagnoseCheck {
+  name: string
+  ok: boolean
+  status: string
+  detail?: string
+}
+interface DiagnoseResult {
+  ok: boolean
+  user?: string
+  checks: DiagnoseCheck[]
+  verdict: string
+}
 
 const DEFAULT_CONFIG: RpcConfig = {
   name: '10X RPC',
@@ -42,6 +55,28 @@ export function RichPresenceForm({
   const [cfg, setCfg] = useState<RpcConfig>(initial || DEFAULT_CONFIG)
   const [saving, setSaving] = useState(false)
   const [enabled, setEnabled] = useState(initial?.enabled ?? false)
+  const [diagnosing, setDiagnosing] = useState(false)
+  const [diagnoseResult, setDiagnoseResult] = useState<DiagnoseResult | null>(null)
+
+  const handleDiagnose = async () => {
+    setDiagnosing(true)
+    setDiagnoseResult(null)
+    try {
+      const res = await fetch('/api/rpc/diagnose', { cache: 'no-store' })
+      const data: DiagnoseResult = await res.json()
+      setDiagnoseResult(data)
+      const failing = data.checks.filter(c => !c.ok)
+      if (failing.length === 0) {
+        toast.success('All checks passed — RPC should be working', { duration: 4000 })
+      } else {
+        toast.error(`${failing.length} issue(s) found — tap the report to view`, { duration: 6000 })
+      }
+    } catch (e) {
+      toast.error('Diagnose failed: ' + (e instanceof Error ? e.message : 'unknown'))
+    } finally {
+      setDiagnosing(false)
+    }
+  }
 
   const [platformOpen, setPlatformOpen] = useState(false)
   const [typeOpen, setTypeOpen] = useState(false)
@@ -490,8 +525,8 @@ export function RichPresenceForm({
               <PurpleSwitch checked={enabled} onCheckedChange={handleToggle} />
             </div>
 
-            {/* Centered UPDATE Button */}
-            <div className="flex justify-center">
+            {/* Centered UPDATE + Diagnose Buttons */}
+            <div className="flex justify-center gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={handleSave}
@@ -500,7 +535,48 @@ export function RichPresenceForm({
               >
                 {saving ? 'SAVING...' : 'UPDATE'}
               </button>
+              <button
+                type="button"
+                onClick={handleDiagnose}
+                disabled={diagnosing}
+                className="bg-[#1e1f26] hover:bg-[#282933] border border-purple-500/30 text-purple-200 font-medium text-xs tracking-widest uppercase px-4 py-3 rounded-xl transition-all active:scale-[0.98] disabled:opacity-50 inline-flex items-center gap-1.5"
+                title="Run a full diagnostic on why RPC may not be showing on Discord"
+              >
+                <Stethoscope className="w-3.5 h-3.5" />
+                {diagnosing ? 'CHECKING...' : 'DIAGNOSE'}
+              </button>
             </div>
+
+            {/* Diagnose Results */}
+            {diagnoseResult && (
+              <div className="mt-4 p-4 rounded-xl bg-[#0f0f14] border border-white/10 max-h-80 overflow-y-auto styled-scroll">
+                <div className="flex items-center justify-between mb-3">
+                  <span className={`text-xs font-bold uppercase tracking-wider ${diagnoseResult.ok ? 'text-emerald-400' : 'text-red-400'}`}>
+                    {diagnoseResult.ok ? '✓ ALL CHECKS PASSED' : `✗ ${diagnoseResult.checks.filter(c => !c.ok).length} ISSUE(S) FOUND`}
+                  </span>
+                  <button onClick={() => setDiagnoseResult(null)} className="text-white/40 hover:text-white">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div className="space-y-2">
+                  {diagnoseResult.checks.map((c, i) => (
+                    <div key={i} className={`p-2.5 rounded-lg border ${c.ok ? 'border-emerald-500/20 bg-emerald-500/5' : 'border-red-500/30 bg-red-500/8'}`}>
+                      <div className="flex items-start gap-2">
+                        <span className={`text-sm font-bold shrink-0 ${c.ok ? 'text-emerald-400' : 'text-red-400'}`}>{c.ok ? '✓' : '✗'}</span>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-xs font-semibold text-white">{c.name}</div>
+                          <div className="text-xs text-white/70 mt-0.5 break-words">{c.status}</div>
+                          {c.detail && <div className="text-[11px] text-white/40 mt-1 break-words">{c.detail}</div>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 p-2.5 rounded-lg bg-white/5 text-xs text-white/60 leading-relaxed">
+                  <span className="font-semibold text-white/80">Verdict:</span> {diagnoseResult.verdict}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
