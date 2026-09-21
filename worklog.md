@@ -563,3 +563,36 @@ Stage Summary:
 - The daemon now connects to gateway.discord.gg (main gateway) which supports app assets.
 - Custom images uploaded as Discord app assets will display correctly.
 - The Gaming SDK gateway was the root cause — it doesn't support large_image for user OAuth sessions.
+
+---
+Task ID: 17
+Agent: main (Z.ai Code)
+Task: Fix Normal RPC image not showing — root cause was asset visibility.
+
+Root Cause (CONFIRMED):
+- All uploaded Discord app assets had `visibility: "private"` (the default when bot uploads via REST API).
+- Discord does NOT display private assets in Rich Presence activities — the image area shows blank/black.
+- The asset key WAS correct (10xrpc_j15jbi), the application_id WAS correct, the gateway WAS correct (gateway.discord.gg), but the asset was private so Discord refused to display it.
+
+Fix:
+- Added `setAssetPublic(key)` function in discord-assets.ts that PATCHes the asset's visibility to "public" via `PATCH /applications/{app}/assets/{key}` with body `{"visibility":"public"}`.
+- Updated uploadImageAsAsset() to call setAssetPublic() AFTER creating each new asset.
+- Updated the "existing asset found" path to also PATCH to public if the asset's visibility isn't already "public" (handles assets uploaded before the fix).
+- Manually patched all 6 existing private assets to public via the bot API.
+
+Verification:
+- All 6 assets now show visibility=public ✅
+- Daemon synced: ok=True ✅
+- large_image = 10xrpc_j15jbi (public asset key) ✅
+- The image should now display on Discord.
+
+Deployed:
+- Vercel: live (10x-rpc.vercel.app → 200)
+- Render: live (uptime 309s)
+- Backend fork: synced with updated discord-assets.ts
+
+Stage Summary:
+- The image was not showing because Discord app assets uploaded via the bot REST API default to "private" visibility.
+- Private assets are NOT displayed in Rich Presence — Discord shows a blank image area.
+- Fixed by PATCHing each asset to "public" visibility after upload.
+- The daemon now automatically sets new assets to public, and patches existing private assets to public on sync.
