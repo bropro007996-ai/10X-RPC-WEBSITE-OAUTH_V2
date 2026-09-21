@@ -6,6 +6,7 @@ import { useRouter } from './useRouter'
 import { ProfileSection } from './ProfileSection'
 import { SmartSleepTimerCard } from './SmartSleepTimerCard'
 import { RichPresenceForm } from './RichPresenceForm'
+import { GamesRpcForm } from './GamesRpcForm'
 
 export function DashboardPage() {
   const { navigate } = useRouter()
@@ -165,7 +166,7 @@ export function DashboardPage() {
           onSaved={refresh}
         />
 
-        {/* Rich presence form */}
+        {/* Rich presence form (Normal RPC) */}
         <RichPresenceForm
           initial={me.rpcConfig}
           onChange={setLiveRpcConfig}
@@ -173,6 +174,14 @@ export function DashboardPage() {
             setLiveRpcConfig(null)
             refresh()
           }}
+          onToggle={() => refresh()}
+        />
+
+        {/* Games RPC (completely separate from Normal RPC) */}
+        <GamesRpcForm
+          initial={me.gameRpcConfig}
+          gamesRpcEnabled={me.session?.gamesRpcEnabled ?? false}
+          onSaved={() => refresh()}
           onToggle={() => refresh()}
         />
 

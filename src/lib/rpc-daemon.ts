@@ -9,10 +9,12 @@ import { db } from './db'
 import {
   buildPresenceActivities,
   buildCustomStatusActivity,
+  buildGameActivityPayload,
   refreshDiscordToken,
   type PresenceResult,
 } from './rpc-manager'
 import { resolvePlaceholders, type PlaceholderContext } from './placeholders'
+import { findSpoofGame } from './spoof-games'
 
 interface ActiveUserSocket {
   userId: string
@@ -33,6 +35,7 @@ interface ActiveUserSocket {
   // the computed activities happen to match what's already cached.
   lastRpcActive: boolean
   lastStatusActive: boolean
+  lastGamesRpcActive: boolean
 }
 
 export class RpcDaemon {
@@ -234,6 +237,7 @@ export class RpcDaemon {
             trial: true,
             globalConfig: true,
             rpcConfigs: true,
+            gameRpcConfigs: true,
             rotatorPresets: true,
           },
         },
@@ -253,12 +257,14 @@ export class RpcDaemon {
       }
 
       const rpcConfig = session.user.rpcConfigs?.[0]
+      const gameRpcConfig = session.user.gameRpcConfigs?.[0]
       const hasRpc = !!(session.rpcEnabled && rpcConfig?.enabled)
+      const hasGamesRpc = !!(session.gamesRpcEnabled && gameRpcConfig?.enabled)
       const hasStatus = !!session.statusEnabled
       const hasRotator = !!(session.statusEnabled && session.user.globalConfig?.rotatorEnabled && session.user.rotatorPresets?.some(p => p.enabled))
 
-      // Only track if user actually has active RPC, active status, or active rotator
-      if (!hasRpc && !hasStatus && !hasRotator) {
+      // Only track if user actually has active RPC, Games RPC, status, or rotator
+      if (!hasRpc && !hasGamesRpc && !hasStatus && !hasRotator) {
         continue
       }
 
@@ -279,6 +285,7 @@ export class RpcDaemon {
           isConnecting: false,
           lastRpcActive: false,
           lastStatusActive: false,
+          lastGamesRpcActive: false,
         }
         this.sockets.set(session.userId, userSock)
       }
@@ -391,12 +398,14 @@ export class RpcDaemon {
     }
 
     const rpcConfig = await db.rpcConfig.findFirst({ where: { userId } })
+    const gameRpcConfig = await db.gameRpcConfig.findUnique({ where: { userId } })
     const hasRpc = !!(session.rpcEnabled && rpcConfig?.enabled)
+    const hasGamesRpc = !!(session.gamesRpcEnabled && gameRpcConfig?.enabled)
     const hasStatus = !!session.statusEnabled
     const hasRotator = !!(session.statusEnabled && session.user.globalConfig?.rotatorEnabled && session.user.rotatorPresets?.some(p => p.enabled))
 
-    // If neither status, RPC, nor rotator is active: stop & clear
-    if (!hasRpc && !hasStatus && !hasRotator) {
+    // If neither status, RPC, Games RPC, nor rotator is active: stop & clear
+    if (!hasRpc && !hasGamesRpc && !hasStatus && !hasRotator) {
       await this.stopUserRpc(userId)
       return {
         ok: true,
@@ -420,6 +429,7 @@ export class RpcDaemon {
         isConnecting: false,
         lastRpcActive: false,
         lastStatusActive: false,
+        lastGamesRpcActive: false,
       }
       this.sockets.set(userId, userSock)
     }
@@ -660,16 +670,26 @@ export class RpcDaemon {
 
   /**
    * Build activities and send OP 3 for the user if anything changed or on reconnect.
+   *
+   * Handles THREE independent features:
+   *   - Status (custom status, type 4) — session.statusEnabled
+   *   - Games RPC (type 0, game's app_id) — session.gamesRpcEnabled + gameRpcConfig.enabled  [PRIORITY]
+   *   - Normal RPC (type 0, OAuth client_id) — session.rpcEnabled + rpcConfig.enabled
+   *
+   * Games RPC takes priority over Normal RPC (Discord only shows one type-0 activity).
+   * Both have independent enable flags; disabling one never touches the other.
    */
   private async pushPresenceForUser(userId: string, session: any, force: boolean = false): Promise<void> {
     const userSock = this.sockets.get(userId)
     if (!userSock || !userSock.ws || userSock.ws.readyState !== WebSocket.OPEN) return
 
     let rpcConfig = null
+    let gameRpcConfig = null
     let globalConfig = null
     try {
-      [rpcConfig, globalConfig] = await Promise.all([
+      [rpcConfig, gameRpcConfig, globalConfig] = await Promise.all([
         db.rpcConfig.findFirst({ where: { userId } }),
+        db.gameRpcConfig.findUnique({ where: { userId } }),
         db.globalConfig.findUnique({ where: { userId } }),
       ])
     } catch (dbErr) {
@@ -685,48 +705,78 @@ export class RpcDaemon {
         : (session.lastPresenceUpdate ? new Date(session.lastPresenceUpdate).getTime() : Date.now()),
     }
 
-    // DATABASE IS SINGLE SOURCE OF TRUTH:
-    // Only send RPC if rpcConfig exists AND rpcConfig.enabled === true AND session.rpcEnabled === true
+    // DATABASE IS SINGLE SOURCE OF TRUTH for all three features (independent):
     const isRpcActive = !!(session.rpcEnabled && rpcConfig?.enabled)
+    const isGamesRpcActive = !!(session.gamesRpcEnabled && gameRpcConfig?.enabled)
     const isStatusActive = !!session.statusEnabled
 
-    // CRITICAL: Detect state TRANSITIONS to force a re-push even when the activities
-    // hash matches. This guarantees Discord gets cleared when RPC or Status is disabled.
-    // Without this, disabling RPC while the hash coincidentally matches (e.g. both
-    // produced empty activities) would skip the OP 3 and leave stale presence on Discord.
+    // Detect state TRANSITIONS to force a re-push (clears Discord on disable).
     const rpcTurnedOff = userSock.lastRpcActive && !isRpcActive
+    const gamesRpcTurnedOff = userSock.lastGamesRpcActive && !isGamesRpcActive
     const statusTurnedOff = userSock.lastStatusActive && !isStatusActive
-    const forceDueToTransition = rpcTurnedOff || statusTurnedOff
+    const forceDueToTransition = rpcTurnedOff || gamesRpcTurnedOff || statusTurnedOff
+
+    // Build Games RPC activity if active (uses the game's real app_id — spoofs the game)
+    let gameActivity: Record<string, unknown> | null = null
+    if (isGamesRpcActive && gameRpcConfig) {
+      const game = findSpoofGame(gameRpcConfig.gameSlug)
+      if (game) {
+        try {
+          gameActivity = await buildGameActivityPayload({
+            gameSlug: game.slug,
+            name: game.name,
+            appId: game.app_id,
+            img: game.img,
+            state: gameRpcConfig.state,
+            details: gameRpcConfig.details,
+            largeImage: gameRpcConfig.largeImage,
+            largeText: gameRpcConfig.largeText,
+            smallImage: gameRpcConfig.smallImage,
+            smallText: gameRpcConfig.smallText,
+            button1Label: gameRpcConfig.button1Label,
+            button1Url: gameRpcConfig.button1Url,
+            button2Label: gameRpcConfig.button2Label,
+            button2Url: gameRpcConfig.button2Url,
+            partyCurrent: gameRpcConfig.partyCurrent,
+            partyMax: gameRpcConfig.partyMax,
+            startMinsAgo: gameRpcConfig.startMinsAgo,
+            endTotalMins: gameRpcConfig.endTotalMins,
+            updatedAt: gameRpcConfig.updatedAt,
+          }, placeholderCtx)
+        } catch (err) {
+          console.error(`[10X RPC Daemon] Error building game activity for user ${userId}:`, err)
+        }
+      }
+    }
 
     const activePlatform = isStatusActive
       ? (session.statusPlatform || 'mobile')
-      : (isRpcActive ? (rpcConfig?.platform || 'desktop') : (session.statusPlatform || 'mobile'))
+      : (isGamesRpcActive ? 'desktop' : (isRpcActive ? (rpcConfig?.platform || 'desktop') : (session.statusPlatform || 'mobile')))
     userSock.platform = activePlatform === 'meta_quest' ? 'meta_quest' : activePlatform
 
     const activities = await buildPresenceActivities({
       rpcConfig: isRpcActive ? rpcConfig : null,
+      gameActivity: gameActivity,
       customStatus: isStatusActive ? session.customStatus : null,
       customStatusEmoji: isStatusActive ? session.customStatusEmoji : null,
       placeholderCtx,
       vrStatusActive: (isStatusActive && session.statusPlatform === 'meta_quest') || (isRpcActive && rpcConfig?.platform === 'meta_quest'),
-      platform: isRpcActive ? (rpcConfig?.platform || 'desktop') : (session.statusPlatform || 'mobile'),
+      platform: isGamesRpcActive ? 'desktop' : (isRpcActive ? (rpcConfig?.platform || 'desktop') : (session.statusPlatform || 'mobile')),
     })
 
-    const status = isStatusActive ? (session.userStatus || 'online') : (isRpcActive ? 'online' : 'invisible')
+    const status = isStatusActive ? (session.userStatus || 'online') : ((isRpcActive || isGamesRpcActive) ? 'online' : 'invisible')
     const activitiesHash = JSON.stringify({ status, activities })
 
     // Avoid spamming identical OP 3 payloads unless forced.
-    // force = explicit force param (from syncUser on UI action) OR a state transition (ON→OFF).
     if (!force && !forceDueToTransition && userSock.lastActivitiesHash === activitiesHash && userSock.lastStatus === status) {
       return
     }
 
-    // If socket is open and payload is ready, send OP 3
     if (!userSock.ws || userSock.ws.readyState !== WebSocket.OPEN) return
 
     try {
       const reason = forceDueToTransition
-        ? ` (state transition: rpc ${userSock.lastRpcActive}→${isRpcActive}, status ${userSock.lastStatusActive}→${isStatusActive})`
+        ? ` (transition: rpc ${userSock.lastRpcActive}→${isRpcActive}, gamesRpc ${userSock.lastGamesRpcActive}→${isGamesRpcActive}, status ${userSock.lastStatusActive}→${isStatusActive})`
         : ''
       console.log(`[10X RPC Daemon] Sending OP 3 for user ${userId}: status=${status}, activities=${JSON.stringify(activities)}${reason}`)
       userSock.ws.send(JSON.stringify({
@@ -740,8 +790,8 @@ export class RpcDaemon {
       }))
       userSock.lastStatus = status
       userSock.lastActivitiesHash = activitiesHash
-      // Track the new state so the next tick can detect another transition
       userSock.lastRpcActive = isRpcActive
+      userSock.lastGamesRpcActive = isGamesRpcActive
       userSock.lastStatusActive = isStatusActive
     } catch (err) {
       console.error(`[10X RPC Daemon] Failed to send OP 3 for user ${userId}:`, err)

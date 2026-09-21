@@ -18,14 +18,16 @@ export async function GET() {
     let trial: any = null
     let globalConfig: any = null
     let rpcConfig: any = null
+    let gameRpcConfig: any = null
     let rotatorPresets: any[] = []
 
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        [trial, globalConfig, rpcConfig, rotatorPresets] = await Promise.all([
+        [trial, globalConfig, rpcConfig, gameRpcConfig, rotatorPresets] = await Promise.all([
           db.trial.findUnique({ where: { userId: session.userId } }),
           db.globalConfig.findUnique({ where: { userId: session.userId } }),
           db.rpcConfig.findFirst({ where: { userId: session.userId } }),
+          db.gameRpcConfig.findUnique({ where: { userId: session.userId } }),
           db.rotatorPreset.findMany({
             where: { userId: session.userId },
             orderBy: { order: 'asc' },
@@ -91,6 +93,7 @@ export async function GET() {
     session: {
       statusEnabled: session.statusEnabled ?? false,
       rpcEnabled: rpcConfig ? (rpcConfig.enabled && session.rpcEnabled) : session.rpcEnabled,
+      gamesRpcEnabled: gameRpcConfig ? (gameRpcConfig.enabled && session.gamesRpcEnabled) : session.gamesRpcEnabled,
       gatewayReady: session.gatewayReady,
       userStatus: session.userStatus,
       customStatus: session.customStatus,
@@ -136,6 +139,25 @@ export async function GET() {
       startMinsAgo: rpcConfig.startMinsAgo,
       endTotalMins: rpcConfig.endTotalMins,
       enabled: rpcConfig.enabled && session.rpcEnabled,
+    } : null,
+    gameRpcConfig: gameRpcConfig ? {
+      id: gameRpcConfig.id,
+      gameSlug: gameRpcConfig.gameSlug,
+      enabled: gameRpcConfig.enabled && session.gamesRpcEnabled,
+      state: gameRpcConfig.state,
+      details: gameRpcConfig.details,
+      largeImage: gameRpcConfig.largeImage,
+      largeText: gameRpcConfig.largeText,
+      smallImage: gameRpcConfig.smallImage,
+      smallText: gameRpcConfig.smallText,
+      button1Label: gameRpcConfig.button1Label,
+      button1Url: gameRpcConfig.button1Url,
+      button2Label: gameRpcConfig.button2Label,
+      button2Url: gameRpcConfig.button2Url,
+      partyCurrent: gameRpcConfig.partyCurrent,
+      partyMax: gameRpcConfig.partyMax,
+      startMinsAgo: gameRpcConfig.startMinsAgo,
+      endTotalMins: gameRpcConfig.endTotalMins,
     } : null,
     rotatorPresets: rotatorPresets.map(p => ({
       id: p.id,

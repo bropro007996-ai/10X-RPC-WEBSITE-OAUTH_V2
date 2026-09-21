@@ -11,6 +11,7 @@ export interface Me {
   session?: {
     statusEnabled?: boolean
     rpcEnabled: boolean
+    gamesRpcEnabled: boolean
     gatewayReady: boolean
     userStatus: string
     customStatus: string | null
@@ -35,6 +36,7 @@ export interface Me {
     rotatorIntervalMins: number
   } | null
   rpcConfig?: RpcConfig | null
+  gameRpcConfig?: GameRpcConfig | null
   rotatorPresets?: RotatorPreset[]
   rotatorEnabled?: boolean
   app?: { name: string; tagline: string }
@@ -71,6 +73,38 @@ export interface RotatorPreset {
   durationMins?: number
   enabled?: boolean
   order?: number
+}
+
+// ===== Games RPC (completely separate from Normal RPC) =====
+export interface SpoofGame {
+  slug: string
+  appId: string
+  name: string
+  img: string
+  defaultState: string
+  defaultDetails: string
+  defaultPartyMax: number
+  defaultPartyCurrent: number
+}
+
+export interface GameRpcConfig {
+  id?: string
+  gameSlug?: string
+  enabled?: boolean
+  state?: string | null
+  details?: string | null
+  largeImage?: string | null
+  largeText?: string | null
+  smallImage?: string | null
+  smallText?: string | null
+  button1Label?: string | null
+  button1Url?: string | null
+  button2Label?: string | null
+  button2Url?: string | null
+  partyCurrent?: number | null
+  partyMax?: number | null
+  startMinsAgo?: number
+  endTotalMins?: number | null
 }
 
 export interface PlaceholderEntry {
@@ -179,6 +213,21 @@ export const api = {
     message?: string
     error?: string
   }>('/api/rpc/toggle', {
+    method: 'POST', body: JSON.stringify({ enabled }),
+  }),
+
+  // ===== Games RPC (completely separate from Normal RPC) =====
+  gamesList: () => fetchJson<{ games: SpoofGame[] }>('/api/games-rpc/list'),
+  gamesRpcGet: () => fetchJson<{ gameRpcConfig: GameRpcConfig | null; gamesRpcEnabled: boolean }>('/api/games-rpc/config'),
+  gamesRpcSave: (data: GameRpcConfig) => fetchJson<{ ok: boolean; gameRpcConfig: GameRpcConfig; gamesRpcEnabled: boolean }>(
+    '/api/games-rpc/config', { method: 'POST', body: JSON.stringify(data) }
+  ),
+  gamesRpcToggle: (enabled: boolean) => fetchJson<{
+    ok: boolean
+    enabled: boolean
+    message?: string
+    error?: string
+  }>('/api/games-rpc/toggle', {
     method: 'POST', body: JSON.stringify({ enabled }),
   }),
 

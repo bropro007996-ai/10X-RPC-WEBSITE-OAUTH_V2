@@ -351,3 +351,44 @@ Verification:
 Stage Summary:
 - Games feature fully removed: API routes, pages, components, lib, router routes, Prisma model, DB table.
 - All other features intact: landing, dashboard, profile, status, RPC, rotator, config, admin, uptime.
+
+---
+Task ID: 11
+Agent: main (Z.ai Code)
+Task: Add Games RPC (spoofGames) as a completely separate system from Normal RPC.
+
+Work Log:
+- REVIEW: Identified all shared Normal RPC state — Session.rpcEnabled, RpcConfig model, /api/rpc/* routes, daemon lastRpcActive, application_id=CONFIG.discord.clientId, api-client RpcConfig interface.
+- Created src/lib/spoof-games.ts: 9 games (minecraft, genshin, wuthering_waves, forza_horizon_5, arknights_endfield, valorant, gta5, vrchat, cs2) each with real Discord app_id + CDN icon URL.
+- DB: Added GameRpcConfig model (separate table: gameSlug, enabled, state, details, images, buttons, party, timestamps) + Session.gamesRpcEnabled boolean. Pushed to Neon (both SQLite + Postgres schemas updated).
+- rpc-manager.ts: Added buildGameActivityPayload() — sets activity.application_id = game.app_id (the KEY difference from Normal RPC which uses CONFIG.discord.clientId). Updated buildPresenceActivities() to accept a gameActivity option — Games RPC takes PRIORITY over Normal RPC (Discord only shows one type-0 activity).
+- rpc-daemon.ts: Added lastGamesRpcActive tracking to ActiveUserSocket. Updated syncAllUsers, syncUser, pushPresenceForUser to independently check session.gamesRpcEnabled + gameRpcConfig.enabled. Detects gamesRpcEnabled transitions (ON→OFF) for force-clear. Builds game activity using the game's app_id + official icon.
+- API routes (NEW, fully separate from /api/rpc/*):
+  * /api/games-rpc/list — public catalog of 9 spoof games
+  * /api/games-rpc/config — GET/POST user's GameRpcConfig (never touches RpcConfig or rpcEnabled)
+  * /api/games-rpc/toggle — enable/disable Games RPC (never touches rpcEnabled or statusEnabled)
+- /api/me: Returns session.gamesRpcEnabled + gameRpcConfig separately from rpcEnabled + rpcConfig.
+- api-client.ts: Added SpoofGame, GameRpcConfig interfaces + gamesList/gamesRpcGet/gamesRpcSave/gamesRpcToggle methods.
+- GamesRpcForm.tsx (NEW component): Separate UI from RichPresenceForm — game selector grid (9 games with icons), separate ENABLE GAMES RPC toggle, separate UPDATE button, separate config fields. Matches existing dark glass-card design.
+- DashboardPage: Added GamesRpcForm below RichPresenceForm with independent initial/gamesRpcEnabled props.
+- Backend fork: Synced all updated lib files (rpc-daemon, rpc-manager, spoof-games, daemon-bridge, config, constants, placeholders, weather, rotator, session, discord-oauth, utils, schema.prisma) to bropro007996-ai/10X-RPC-WEBSITE-OAUTH-BACKEND-SERVER_V2. Pushed via GitHub API. Triggered Render deploy (live).
+- Deployed frontend to Vercel (live).
+
+Independence Test Results (all PASS):
+- TEST 1: Enable Normal RPC → Games RPC stays OFF ✅
+- TEST 2: Enable Games RPC → Normal RPC stays ON ✅
+- TEST 3: Disable Normal RPC → Games RPC stays ON ✅
+- TEST 4: Disable Games RPC → Normal RPC stays OFF ✅
+- TEST 5: Save Games RPC config (valorant) → Normal RPC config (rpc.name=10X RPC) untouched ✅
+
+Stage Summary:
+- Normal RPC and Games RPC are FULLY SEPARATE:
+  * Separate DB tables (RpcConfig vs GameRpcConfig)
+  * Separate session flags (rpcEnabled vs gamesRpcEnabled)
+  * Separate API routes (/api/rpc/* vs /api/games-rpc/*)
+  * Separate daemon state tracking (lastRpcActive vs lastGamesRpcActive)
+  * Separate application_id (OAuth client_id vs game's real app_id)
+  * Separate UI forms (RichPresenceForm vs GamesRpcForm)
+- Games RPC spoofs real Discord games: activity.application_id = game.app_id → Discord shows the game's official icon and name.
+- Priority: if both enabled, Games RPC takes priority (Discord only shows one type-0 activity).
+- Both can be enabled/disabled independently with zero interference.
