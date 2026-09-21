@@ -141,3 +141,38 @@ Stage Summary:
 - One manual step remains: Discord Developer Portal → OAuth2 → Redirects → add https://10x-rpc.vercel.app/auth/callback.
 - After that, the full OAuth flow → Discord Rich Presence pipeline is operational.
 - CRITICAL: user must rotate ALL tokens (GitHub PAT, Vercel, Render, Discord secret+bot token, Neon password) — all were shared in chat.
+
+---
+Task ID: 5
+Agent: main (Z.ai Code)
+Task: Add a public /uptime status page to the 10X RPC deployment.
+
+Work Log:
+- Added RENDER_BACKEND_URL to src/lib/config.ts (render.backendUrl + healthPath).
+- Created src/app/api/uptime/route.ts — public server-side health aggregator (no auth):
+  * Vercel Frontend (self) — always operational if route responds
+  * Render Backend (24/7 Daemon) — fetches RENDER_BACKEND_URL/health with 8s timeout; parses uptime from JSON response
+  * Neon Postgres — runs db.user.count() with latency measurement
+  * Discord API — fetches /api/v9/gateway with 6s timeout
+  * Returns { overall, services[], checkedAt, elapsedMs } with no-store cache + CORS *
+- Created src/app/uptime/page.tsx — client status dashboard:
+  * Dark glass-card theme matching 10X RPC design (purple accents, ambient glow)
+  * Overall status banner (operational/degraded/partial_outage/pending) with color-coded glow
+  * 4 service cards with icons (▲ Vercel, 🛰️ Render, 🗄️ Neon, 🎮 Discord), status dots, latency, message
+  * Auto-refresh every 30s + manual "Refresh now" button
+  * "About this page" info section explaining the split architecture
+  * Sticky footer (min-h-screen flex flex-col, mt-auto) with Home + Discord links
+  * Responsive (mobile-friendly, sm: breakpoints)
+  * Staggered fade-up animation on service cards
+- Created src/app/uptime/layout.tsx — server metadata (title "System Status — 10X RPC", description, OG tags).
+- Set RENDER_BACKEND_URL=https://one0x-rpc-backend-wv36.onrender.com on Vercel via API (prod+preview+dev).
+- Lint passes clean.
+- Sandbox verified: /api/uptime returns overall=operational, all 4 services up (Render uptime 18m, Neon connected, Discord reachable).
+- Browser verified (sandbox + production): page renders with zero errors, "All Systems Operational" banner.
+- Redeployed to Vercel production: GET https://10x-rpc.vercel.app/uptime -> 200, /api/uptime -> all operational, title="System Status — 10X RPC".
+
+Stage Summary:
+- /uptime page LIVE at https://10x-rpc.vercel.app/uptime
+- /api/uptime LIVE at https://10x-rpc.vercel.app/api/uptime (public JSON, no auth)
+- All 4 services showing operational in production.
+- Auto-refreshes every 30s; no authentication needed.
