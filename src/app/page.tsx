@@ -4,8 +4,6 @@ import { useEffect, useState } from 'react'
 import { useRouter } from '@/components/tenx/useRouter'
 import { LandingPage } from '@/components/tenx/LandingPage'
 import { DashboardPage } from '@/components/tenx/DashboardPage'
-import { GamesPage } from '@/components/tenx/GamesPage'
-import { GameConfigPage } from '@/components/tenx/GameConfigPage'
 import { GlobalConfigPage } from '@/components/tenx/GlobalConfigPage'
 import { StatusRotatorPage } from '@/components/tenx/StatusRotatorPage'
 import { OAuthConsentPage } from '@/components/tenx/OAuthConsentPage'
@@ -32,8 +30,6 @@ export default function Home() {
   if (route.name === 'oauth-consent') return <OAuthConsentPage />
   if (route.name === 'dashboard') return <DashboardPage />
   if (route.name === 'admin') return <AdminPage />
-  if (route.name === 'games') return <GamesPage />
-  if (route.name === 'game') return <GameConfigPage slug={route.slug} />
   if (route.name === 'config') {
     return (
       <GlobalConfigPage

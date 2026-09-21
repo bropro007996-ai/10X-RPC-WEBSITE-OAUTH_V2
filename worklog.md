@@ -322,3 +322,32 @@ Stage Summary:
 - STATUS + RPC are fully independent: enabling/disabling one never touches the other's DB fields or daemon state.
 - State persists across refresh/restart: DB is single source of truth; daemon reads it every 30s + on-demand via HTTP.
 - No re-enable after disable: daemon's transition-detection (lastRpcActive→false) forces a clear-push; hash-dedup can't skip it.
+
+---
+Task ID: 10
+Agent: main (Z.ai Code)
+Task: Remove all games from the 10X RPC app.
+
+Work Log:
+- Deleted files: src/app/api/games/ (list + [slug] routes), src/components/tenx/GamesPage.tsx, src/components/tenx/GameConfigPage.tsx, src/lib/games.ts.
+- Removed game routes from useRouter.ts: dropped { name: 'games' } and { name: 'game', slug } from the Route type, parseHash(), and toHash().
+- Removed game imports + route handlers from src/app/page.tsx.
+- Removed onGameRpcClick prop from RichPresenceForm (function signature + the entire "want something cool ? / TRY GAME RPC NOW" section + ChevronsDown import).
+- Removed onGameRpcClick={() => navigate({ name: 'games' })} from DashboardPage.
+- Removed GameListItem, GamePreset, GameConfig interfaces + gamesList/gameConfig/gameSave API methods from api-client.ts.
+- Removed GameConfig model + gameConfigs relation field from prisma/schema.prisma (SQLite) AND prisma/schema.prod.prisma (Postgres).
+- Ran db:push against Neon: GameConfig table (2 rows) dropped.
+- Lint passes clean (zero errors).
+- Deployed to Vercel production.
+
+Verification:
+- GET /api/games/list -> 404 (route removed)
+- GET / -> 200 (landing intact)
+- GET /api/me -> 200 (dashboard intact)
+- GET /uptime -> 200 (status page intact)
+- Browser: dashboard renders without "TRY GAME RPC NOW" button, zero page errors.
+- grep for game references in src/ -> 0 matches.
+
+Stage Summary:
+- Games feature fully removed: API routes, pages, components, lib, router routes, Prisma model, DB table.
+- All other features intact: landing, dashboard, profile, status, RPC, rotator, config, admin, uptime.

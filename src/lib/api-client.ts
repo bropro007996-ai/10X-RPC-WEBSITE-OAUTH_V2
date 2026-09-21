@@ -73,52 +73,6 @@ export interface RotatorPreset {
   order?: number
 }
 
-export interface GameListItem {
-  slug: string
-  name: string
-  largeImage: string
-  iconUrl?: string
-  defaultDetails?: string
-  enabled: boolean
-  saved: boolean
-}
-
-export interface GamePreset {
-  slug: string
-  name: string
-  largeImage: string
-  largeText: string
-  defaultState: string
-  defaultDetails: string
-  defaultPlatform: string
-  defaultPartyMax: number
-  defaultPartyCurrent: number
-  defaultEndTotalMins: number | null
-  tags: string[]
-}
-
-export interface GameConfig {
-  id?: string
-  enabled: boolean
-  platform: string
-  state: string | null
-  details: string | null
-  largeImage: string | null
-  largeText: string | null
-  smallImage: string | null
-  smallText: string | null
-  button1Label: string | null
-  button1Url: string | null
-  button2Label: string | null
-  button2Url: string | null
-  partyCurrent: number
-  partyMax: number
-  partyId: string | null
-  partySecret: string | null
-  startMinsAgo: number
-  endTotalMins: number | null
-}
-
 export interface PlaceholderEntry {
   token: string
   desc: string
@@ -262,12 +216,6 @@ export const api = {
 
   vrToggle: (active: boolean) => fetchJson<{ ok: boolean; vrStatusActive: boolean }>(
     '/api/vr-status/enable', { method: 'POST', body: JSON.stringify({ active }) }
-  ),
-
-  gamesList: () => fetchJson<{ games: GameListItem[] }>('/api/games/list'),
-  gameConfig: (slug: string) => fetchJson<{ preset: GamePreset; config: GameConfig | null }>(`/api/games/${slug}`),
-  gameSave: (slug: string, data: Partial<GameConfig>) => fetchJson<{ ok: boolean; config: GameConfig }>(
-    `/api/games/${slug}`, { method: 'POST', body: JSON.stringify(data) }
   ),
 
   configSave: (city: string | null, timezone: string) => fetchJson<{ ok: boolean }>(

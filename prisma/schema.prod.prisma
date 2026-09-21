@@ -26,7 +26,6 @@ model User {
 
   sessions        Session[]
   rpcConfigs      RpcConfig[]
-  gameConfigs     GameConfig[]
   rotatorPresets  RotatorPreset[]
   globalConfig    GlobalConfig?
   trial           Trial?
@@ -99,36 +98,6 @@ model RpcConfig {
   @@index([userId])
 }
 
-model GameConfig {
-  id           String   @id @default(cuid())
-  userId       String
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gameSlug     String
-  gameName     String
-  enabled      Boolean  @default(false)
-  platform     String   @default("desktop")
-  state        String?
-  details      String?
-  largeImage   String?
-  largeText    String?
-  smallImage   String?
-  smallText    String?
-  button1Label String?
-  button1Url   String?
-  button2Label String?
-  button2Url   String?
-  partyCurrent Int      @default(1)
-  partyMax     Int      @default(5)
-  partyId      String?
-  partySecret  String?
-  startMinsAgo Int      @default(0)
-  endTotalMins Int?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-
-  @@unique([userId, gameSlug])
-  @@index([userId])
-}
 
 model RotatorPreset {
   id           String   @id @default(cuid())

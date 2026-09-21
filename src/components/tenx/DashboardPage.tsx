@@ -174,7 +174,6 @@ export function DashboardPage() {
             refresh()
           }}
           onToggle={() => refresh()}
-          onGameRpcClick={() => navigate({ name: 'games' })}
         />
 
         {/* Footer */}

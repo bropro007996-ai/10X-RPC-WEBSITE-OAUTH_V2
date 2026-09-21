@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { api, type RpcConfig } from '@/lib/api-client'
 import { PurpleSwitch } from './ui'
 import { ACTIVITY_TYPES, PLATFORMS, PLATFORM_GROUPS } from '@/lib/constants'
-import { Gamepad2, ChevronDown, ChevronsDown, Stethoscope, X } from 'lucide-react'
+import { Gamepad2, ChevronDown, Stethoscope, X } from 'lucide-react'
 
 interface DiagnoseCheck {
   name: string
@@ -44,12 +44,11 @@ const DEFAULT_CONFIG: RpcConfig = {
 }
 
 export function RichPresenceForm({
-  initial, onSaved, onToggle, onGameRpcClick, onChange,
+  initial, onSaved, onToggle, onChange,
 }: {
   initial: RpcConfig | null | undefined
   onSaved?: () => void
   onToggle?: (v: boolean) => void
-  onGameRpcClick?: () => void
   onChange?: (cfg: RpcConfig) => void
 }) {
   const [cfg, setCfg] = useState<RpcConfig>(initial || DEFAULT_CONFIG)
@@ -580,38 +579,6 @@ export function RichPresenceForm({
           </div>
         </div>
       </div>
-
-      {/* === "want something cool ?" & TRY GAME RPC NOW (Matches Screenshot 2) === */}
-      {onGameRpcClick && (
-        <div className="text-center pt-2 pb-6 space-y-4">
-          <div className="space-y-1 font-['Comic_Sans_MS',_'Chalkboard_SE',_'Comic_Neue',_cursive,_sans-serif]">
-            <p className="text-3xl sm:text-4xl text-white font-normal tracking-wide">
-              want something cool
-            </p>
-            <p className="text-3xl sm:text-4xl text-white font-normal">
-              ?
-            </p>
-          </div>
-
-          <div className="flex justify-center py-1">
-            <ChevronsDown className="w-8 h-8 text-purple-400 stroke-[2.5] animate-bounce" />
-          </div>
-
-          {/* Giant Game RPC Button */}
-          <button
-            type="button"
-            onClick={onGameRpcClick}
-            className="w-full py-7 px-4 rounded-[28px] bg-gradient-to-r from-[#221b36] via-[#352554] to-[#221b36] border border-purple-500/35 hover:border-purple-400/60 shadow-2xl shadow-purple-950/50 text-center transition-all cursor-pointer group active:scale-[0.99]"
-          >
-            <div className="text-2xl sm:text-3xl font-black tracking-wider text-purple-200 group-hover:text-white transition-colors">
-              TRY GAME RPC
-            </div>
-            <div className="text-2xl sm:text-3xl font-black tracking-wider text-purple-200 group-hover:text-white transition-colors mt-0.5">
-              NOW
-            </div>
-          </button>
-        </div>
-      )}
     </div>
   )
 }
