@@ -1,0 +1,805 @@
+     1→// 10X RPC — 24/7 Background RPC & Status Daemon
+     2→// Maintains persistent Discord Gateway WebSocket connections for all active sessions,
+     3→// automatically recovers from drops, refreshes expired OAuth tokens, ticks status rotator,
+     4→// updates dynamic placeholders, and enforces sleep timers.
+     5→
+     6→import WebSocket from 'ws'
+     7→import { CONFIG } from './config'
+     8→import { db } from './db'
+     9→import {
+    10→  buildPresenceActivities,
+    11→  buildCustomStatusActivity,
+    12→  refreshDiscordToken,
+    13→  type PresenceResult,
+    14→} from './rpc-manager'
+    15→import { resolvePlaceholders, type PlaceholderContext } from './placeholders'
+    16→
+    17→interface ActiveUserSocket {
+    18→  userId: string
+    19→  sessionId: string
+    20→  ws: WebSocket | null
+    21→  heartbeatTimer?: NodeJS.Timeout
+    22→  heartbeatAck: boolean
+    23→  retryCount: number
+    24→  retryTimer?: NodeJS.Timeout
+    25→  platform: string
+    26→  lastStatus: string
+    27→  lastActivitiesHash: string
+    28→  connected: boolean
+    29→  lastConnectedAt?: Date
+    30→  isConnecting: boolean
+    31→}
+    32→
+    33→export class RpcDaemon {
+    34→  private sockets = new Map<string, ActiveUserSocket>()
+    35→  private tickTimer?: NodeJS.Timeout
+    36→  private isRunning = false
+    37→  private startTime = Date.now()
+    38→  private lastTickAt: Date | null = null
+    39→
+    40→  /**
+    41→   * Start the 24/7 background daemon.
+    42→   */
+    43→  public async start(): Promise<void> {
+    44→    if (this.isRunning) return
+    45→    this.isRunning = true
+    46→    this.startTime = Date.now()
+    47→    console.log('[10X RPC Daemon] Starting 24/7 background daemon...')
+    48→
+    49→    // Run initial sync
+    50→    await this.syncAllUsers().catch(err => {
+    51→      console.error('[10X RPC Daemon] Initial sync error:', err)
+    52→    })
+    53→
+    54→    // Tick every 30 seconds
+    55→    this.tickTimer = setInterval(async () => {
+    56→      try {
+    57→        await this.tick()
+    58→      } catch (err) {
+    59→        console.error('[10X RPC Daemon] Tick error:', err)
+    60→      }
+    61→    }, 30000)
+    62→
+    63→    console.log('[10X RPC Daemon] 24/7 daemon started successfully.')
+    64→  }
+    65→
+    66→  /**
+    67→   * Stop the daemon and disconnect sockets.
+    68→   */
+    69→  public stop(): void {
+    70→    if (!this.isRunning) return
+    71→    this.isRunning = false
+    72→    if (this.tickTimer) {
+    73→      clearInterval(this.tickTimer)
+    74→      this.tickTimer = undefined
+    75→    }
+    76→
+    77→    for (const [userId, userSock] of this.sockets.entries()) {
+    78→      this.cleanupSocket(userSock)
+    79→    }
+    80→    this.sockets.clear()
+    81→    console.log('[10X RPC Daemon] Daemon stopped.')
+    82→  }
+    83→
+    84→  /**
+    85→   * Background tick loop:
+    86→   * - Rotates custom status if rotator is enabled
+    87→   * - Checks and expires sleep timers
+    88→   * - Re-resolves dynamic placeholders ({time}, {uptime}, etc.)
+    89→   * - Refreshes near-expiry Discord tokens
+    90→   * - Syncs any DB state changes
+    91→   */
+    92→  public async tick(): Promise<void> {
+    93→    this.lastTickAt = new Date()
+    94→    const now = new Date()
+    95→
+    96→    // 1. Sync users from DB
+    97→    await this.syncAllUsers()
+    98→
+    99→    // 2. Iterate connected users
+   100→    for (const [userId, userSock] of this.sockets.entries()) {
+   101→      try {
+   102→        const session = await db.session.findFirst({
+   103→          where: { userId, expiresAt: { gt: now } },
+   104→          include: {
+   105→            user: {
+   106→              include: {
+   107→                globalConfig: true,
+   108→                rotatorPresets: { orderBy: { order: 'asc' } },
+   109→                trial: true,
+   110→              },
+   111→            },
+   112→          },
+   113→        })
+   114→
+   115→        if (!session) {
+   116→          this.disconnectUser(userId)
+   117→          continue
+   118→        }
+   119→
+   120→        // Check trial
+   121→        if (!session.user.trial || !session.user.trial.active || session.user.trial.endsAt < now) {
+   122→          console.log(`[10X RPC Daemon] Trial expired for user ${userId}, disabling presence`)
+   123→          await db.session.update({
+   124→            where: { id: session.id },
+   125→            data: { rpcEnabled: false, statusEnabled: false, gatewayReady: false },
+   126→          })
+   127→          this.disconnectUser(userId)
+   128→          continue
+   129→        }
+   130→
+   131→        // Check sleep timer
+   132→        if (session.sleepTimerActive && session.sleepTimerEndsAt && session.sleepTimerEndsAt <= now) {
+   133→          console.log(`[10X RPC Daemon] Sleep timer elapsed for user ${userId}`)
+   134→          await db.session.update({
+   135→            where: { id: session.id },
+   136→            data: {
+   137→              sleepTimerActive: false,
+   138→              sleepTimerEndsAt: null,
+   139→              rpcEnabled: false,
+   140→              statusEnabled: false,
+   141→              gatewayReady: false,
+   142→            },
+   143→          })
+   144→          await db.rpcConfig.updateMany({
+   145→            where: { userId, enabled: true },
+   146→            data: { enabled: false },
+   147→          })
+   148→          this.disconnectUser(userId)
+   149→          continue
+   150→        }
+   151→
+   152→        // Check token expiration (refresh if < 30 mins left)
+   153→        if (session.discordTokenExpiresAt && session.discordTokenExpiresAt.getTime() - now.getTime() < 30 * 60 * 1000) {
+   154→          if (session.discordRefreshToken) {
+   155→            console.log(`[10X RPC Daemon] Refreshing Discord token for user ${userId}...`)
+   156→            const refreshed = await refreshDiscordToken(session.discordRefreshToken)
+   157→            if (refreshed) {
+   158→              await db.session.update({
+   159→                where: { id: session.id },
+   160→                data: {
+   161→                  discordAccessToken: refreshed.access_token,
+   162→                  discordRefreshToken: refreshed.refresh_token,
+   163→                  discordTokenExpiresAt: new Date(Date.now() + (refreshed.expires_in || 604800) * 1000),
+   164→                },
+   165→              })
+   166→              session.discordAccessToken = refreshed.access_token
+   167→            }
+   168→          }
+   169→        }
+   170→
+   171→        // Check status rotator
+   172→        if (session.user.globalConfig?.rotatorEnabled) {
+   173→          const presets = session.user.rotatorPresets.filter(p => p.enabled)
+   174→          if (presets.length > 0) {
+   175→            const totalDurationSecs = presets.reduce((sum, p) => sum + Math.max(1, p.durationMins * 60), 0)
+   176→            const referenceTime = presets[0].createdAt.getTime()
+   177→            const elapsedSecs = Math.floor((now.getTime() - referenceTime) / 1000)
+   178→            const positionInCycle = ((elapsedSecs % totalDurationSecs) + totalDurationSecs) % totalDurationSecs
+   179→
+   180→            let accumulated = 0
+   181→            let activeIndex = 0
+   182→            for (let i = 0; i < presets.length; i++) {
+   183→              const dur = Math.max(1, presets[i].durationMins * 60)
+   184→              if (accumulated + dur > positionInCycle) {
+   185→                activeIndex = i
+   186→                break
+   187→              }
+   188→              accumulated += dur
+   189→            }
+   190→
+   191→            const activePreset = presets[activeIndex]
+   192→            if (session.customStatus !== activePreset.text || session.customStatusEmoji !== activePreset.emoji) {
+   193→              await db.session.update({
+   194→                where: { id: session.id },
+   195→                data: {
+   196→                  customStatus: activePreset.text,
+   197→                  customStatusEmoji: activePreset.emoji,
+   198→                },
+   199→              })
+   200→              session.customStatus = activePreset.text
+   201→              session.customStatusEmoji = activePreset.emoji
+   202→            }
+   203→          }
+   204→        }
+   205→
+   206→        // Re-evaluate activities and push OP 3 if needed
+   207→        await this.pushPresenceForUser(userId, session)
+   208→      } catch (userTickErr) {
+   209→        console.error(`[10X RPC Daemon] Error in tick for user ${userId}:`, userTickErr)
+   210→      }
+   211→    }
+   212→  }
+   213→
+   214→  /**
+   215→   * Synchronize all active users from Postgres DB.
+   216→   * Only keeps connections alive for users with active RPC, custom status, or status rotator.
+   217→   * Cleans up and disconnects any user whose RPC and status are disabled.
+   218→   */
+   219→  public async syncAllUsers(): Promise<void> {
+   220→    const now = new Date()
+   221→    const activeSessions = await db.session.findMany({
+   222→      where: {
+   223→        expiresAt: { gt: now },
+   224→        discordAccessToken: { not: null },
+   225→      },
+   226→      include: {
+   227→        user: {
+   228→          include: {
+   229→            trial: true,
+   230→            globalConfig: true,
+   231→            rpcConfigs: true,
+   232→            rotatorPresets: true,
+   233→          },
+   234→        },
+   235→      },
+   236→    })
+   237→
+   238→    const activeUserIds = new Set<string>()
+   239→
+   240→    for (const session of activeSessions) {
+   241→      // Check trial
+   242→      if (!session.user.trial || !session.user.trial.active || session.user.trial.endsAt < now) {
+   243→        continue
+   244→      }
+   245→      // Check sleep timer
+   246→      if (session.sleepTimerActive && session.sleepTimerEndsAt && session.sleepTimerEndsAt <= now) {
+   247→        continue
+   248→      }
+   249→
+   250→      const rpcConfig = session.user.rpcConfigs?.[0]
+   251→      const hasRpc = !!(session.rpcEnabled && rpcConfig?.enabled)
+   252→      const hasStatus = !!session.statusEnabled
+   253→      const hasRotator = !!(session.statusEnabled && session.user.globalConfig?.rotatorEnabled && session.user.rotatorPresets?.some(p => p.enabled))
+   254→
+   255→      // Only track if user actually has active RPC, active status, or active rotator
+   256→      if (!hasRpc && !hasStatus && !hasRotator) {
+   257→        continue
+   258→      }
+   259→
+   260→      activeUserIds.add(session.userId)
+   261→      let userSock = this.sockets.get(session.userId)
+   262→
+   263→      if (!userSock) {
+   264→        userSock = {
+   265→          userId: session.userId,
+   266→          sessionId: session.id,
+   267→          ws: null,
+   268→          heartbeatAck: true,
+   269→          retryCount: 0,
+   270→          platform: rpcConfig?.platform || 'desktop',
+   271→          lastStatus: session.userStatus || 'online',
+   272→          lastActivitiesHash: '',
+   273→          connected: false,
+   274→          isConnecting: false,
+   275→        }
+   276→        this.sockets.set(session.userId, userSock)
+   277→      }
+   278→
+   279→      // If socket is disconnected, connect it
+   280→      if (!userSock.connected && !userSock.isConnecting) {
+   281→        this.connectUserSocket(session.userId)
+   282→      }
+   283→    }
+   284→
+   285→    // Cleanup and disconnect users that are no longer active (prevents background restarts)
+   286→    for (const [userId, userSock] of this.sockets.entries()) {
+   287→      if (!activeUserIds.has(userId)) {
+   288→        this.disconnectUser(userId)
+   289→      }
+   290→    }
+   291→  }
+   292→
+   293→  /**
+   294→   * Stop RPC completely for a user:
+   295→   * - Sends OP 3 with empty activities (or custom status only) to clear Discord Rich Presence
+   296→   * - Stops all timers and intervals
+   297→   * - Disconnects socket if no other presence (e.g. custom status) is needed
+   298→   * - Prevents background restarts
+   299→   */
+   300→  public async stopUserRpc(userId: string): Promise<void> {
+   301→    const session = await db.session.findFirst({
+   302→      where: { userId },
+   303→    })
+   304→    if (!session || !session.discordAccessToken) return
+   305→
+   306→    const userSock = this.sockets.get(userId)
+   307→    const hasStatus = !!session.statusEnabled
+   308→    const hasCustomStatus = !!(session.customStatus || session.customStatusEmoji)
+   309→
+   310→    if (userSock && userSock.ws && userSock.ws.readyState === WebSocket.OPEN) {
+   311→      const activities: Array<Record<string, unknown>> = []
+   312→      if (hasStatus && hasCustomStatus) {
+   313→        const customActivity = buildCustomStatusActivity(
+   314→          session.customStatus,
+   315→          session.customStatusEmoji
+   316→        )
+   317→        if (customActivity) activities.push(customActivity)
+   318→      }
+   319→
+   320→      const status = hasStatus ? (session.userStatus || 'online') : 'invisible'
+   321→
+   322→      try {
+   323→        userSock.ws.send(JSON.stringify({
+   324→          op: 3,
+   325→          d: {
+   326→            status,
+   327→            activities,
+   328→            afk: false,
+   329→            since: null,
+   330→          },
+   331→        }))
+   332→        userSock.lastActivitiesHash = JSON.stringify({ status, activities })
+   333→        userSock.lastStatus = status
+   334→      } catch (err) {
+   335→        console.error(`[10X RPC Daemon] Error sending clear OP 3 for user ${userId}:`, err)
+   336→      }
+   337→
+   338→      // If status is not active, close socket cleanly and stop all timers
+   339→      if (!hasStatus) {
+   340→        this.cleanupSocket(userSock)
+   341→        this.sockets.delete(userId)
+   342→      }
+   343→    } else if (hasStatus) {
+   344→      // Connect to Discord Gateway to maintain user status
+   345→      await this.connectUserSocket(userId)
+   346→    }
+   347→  }
+   348→
+   349→  /**
+   350→   * Sync a specific user immediately on UI actions (button click, toggle, status change).
+   351→   */
+   352→  public async syncUser(userId: string): Promise<PresenceResult> {
+   353→    const now = new Date()
+   354→    const session = await db.session.findFirst({
+   355→      where: { userId, expiresAt: { gt: now } },
+   356→      include: {
+   357→        user: {
+   358→          include: {
+   359→            trial: true,
+   360→            globalConfig: true,
+   361→            rotatorPresets: true,
+   362→          },
+   363→        },
+   364→      },
+   365→    })
+   366→
+   367→    if (!session || !session.discordAccessToken) {
+   368→      this.disconnectUser(userId)
+   369→      return {
+   370→        ok: false,
+   371→        method: 'none',
+   372→        message: 'No active session with Discord token',
+   373→      }
+   374→    }
+   375→
+   376→    // Trial check
+   377→    if (!session.user.trial || !session.user.trial.active || session.user.trial.endsAt < now) {
+   378→      this.disconnectUser(userId)
+   379→      return {
+   380→        ok: false,
+   381→        method: 'none',
+   382→        message: 'Trial expired',
+   383→      }
+   384→    }
+   385→
+   386→    const rpcConfig = await db.rpcConfig.findFirst({ where: { userId } })
+   387→    const hasRpc = !!(session.rpcEnabled && rpcConfig?.enabled)
+   388→    const hasStatus = !!session.statusEnabled
+   389→    const hasRotator = !!(session.statusEnabled && session.user.globalConfig?.rotatorEnabled && session.user.rotatorPresets?.some(p => p.enabled))
+   390→
+   391→    // If neither status, RPC, nor rotator is active: stop & clear
+   392→    if (!hasRpc && !hasStatus && !hasRotator) {
+   393→      await this.stopUserRpc(userId)
+   394→      return {
+   395→        ok: true,
+   396→        method: 'gateway',
+   397→        message: 'Presence disabled & cleared from Discord',
+   398→      }
+   399→    }
+   400→
+   401→    let userSock = this.sockets.get(userId)
+   402→    if (!userSock) {
+   403→      userSock = {
+   404→        userId,
+   405→        sessionId: session.id,
+   406→        ws: null,
+   407→        heartbeatAck: true,
+   408→        retryCount: 0,
+   409→        platform: rpcConfig?.platform || 'desktop',
+   410→        lastStatus: session.userStatus || 'online',
+   411→        lastActivitiesHash: '',
+   412→        connected: false,
+   413→        isConnecting: false,
+   414→      }
+   415→      this.sockets.set(userId, userSock)
+   416→    }
+   417→
+   418→    if (!userSock.connected && !userSock.isConnecting) {
+   419→      await this.connectUserSocket(userId)
+   420→    } else {
+   421→      await this.pushPresenceForUser(userId, session, true)
+   422→    }
+   423→
+   424→    return {
+   425→      ok: true,
+   426→      method: 'gateway',
+   427→      message: 'Presence synced to 24/7 Gateway',
+   428→    }
+   429→  }
+   430→
+   431→  /**
+   432→   * Connect or reconnect a user's WebSocket to Discord Gaming SDK Gateway.
+   433→   */
+   434→  private async connectUserSocket(userId: string): Promise<void> {
+   435→    const userSock = this.sockets.get(userId)
+   436→    if (!userSock || userSock.isConnecting) return
+   437→
+   438→    // Clean up previous socket cleanly before starting new connection
+   439→    this.cleanupSocket(userSock)
+   440→    userSock.isConnecting = true
+   441→
+   442→    try {
+   443→      const session = await db.session.findFirst({
+   444→        where: { userId },
+   445→      })
+   446→      if (!session || !session.discordAccessToken) {
+   447→        userSock.isConnecting = false
+   448→        this.disconnectUser(userId)
+   449→        return
+   450→      }
+   451→
+   452→      // Check if token is expired and refresh before connecting
+   453→      let accessToken = session.discordAccessToken
+   454→      const now = new Date()
+   455→      if (session.discordTokenExpiresAt && session.discordTokenExpiresAt < now) {
+   456→        if (session.discordRefreshToken) {
+   457→          const refreshed = await refreshDiscordToken(session.discordRefreshToken)
+   458→          if (refreshed) {
+   459→            accessToken = refreshed.access_token
+   460→            await db.session.update({
+   461→              where: { id: session.id },
+   462→              data: {
+   463→                discordAccessToken: refreshed.access_token,
+   464→                discordRefreshToken: refreshed.refresh_token,
+   465→                discordTokenExpiresAt: new Date(Date.now() + (refreshed.expires_in || 604800) * 1000),
+   466→              },
+   467→            })
+   468→          }
+   469→        }
+   470→      }
+   471→
+   472→      // Check target platform based on active mode
+   473→      const rpcConfig = await db.rpcConfig.findFirst({ where: { userId } })
+   474→      const isRpcActive = !!(session.rpcEnabled && rpcConfig?.enabled)
+   475→      const isStatusActive = !!session.statusEnabled
+   476→
+   477→      const activePlatform = isStatusActive
+   478→        ? (session.statusPlatform || 'mobile')
+   479→        : (isRpcActive ? (rpcConfig?.platform || 'desktop') : (session.statusPlatform || 'mobile'))
+   480→
+   481→      const isQuest = activePlatform === 'meta_quest' || (isStatusActive && session.vrStatusActive)
+   482→      const targetPlatform = isQuest ? 'meta_quest' : activePlatform
+   483→      userSock.platform = targetPlatform
+   484→
+   485→      const ws = new WebSocket(CONFIG.discord.gatewayUrl)
+   486→      userSock.ws = ws
+   487→
+   488→      ws.on('open', () => {
+   489→        // Awaiting HELLO (OP 10)
+   490→      })
+   491→
+   492→      ws.on('message', async (data: Buffer | string) => {
+   493→        try {
+   494→          const raw = typeof data === 'string' ? data : data.toString()
+   495→          const payload = JSON.parse(raw)
+   496→          const op = payload.op
+   497→          const t = payload.t
+   498→
+   499→          if (op === 10) {
+   500→            // HELLO: Start heartbeats and send IDENTIFY
+   501→            const heartbeatInterval = payload.d?.heartbeat_interval || 41250
+   502→            userSock.heartbeatAck = true
+   503→
+   504→            userSock.heartbeatTimer = setInterval(() => {
+   505→              if (ws.readyState === WebSocket.OPEN) {
+   506→                if (!userSock.heartbeatAck) {
+   507→                  console.warn(`[10X RPC Daemon] Zombie socket detected for user ${userId} (missing ACK). Reconnecting...`)
+   508→                  this.cleanupSocket(userSock)
+   509→                  this.scheduleReconnect(userId)
+   510→                  return
+   511→                }
+   512→                userSock.heartbeatAck = false
+   513→                ws.send(JSON.stringify({ op: 1, d: null }))
+   514→              }
+   515→            }, heartbeatInterval)
+   516→
+   517→            const isMobile = targetPlatform === 'android' || targetPlatform === 'ios' || targetPlatform === 'samsung' || targetPlatform === 'mobile'
+   518→            const isConsole = targetPlatform === 'console' || targetPlatform === 'xbox' || targetPlatform === 'ps4' || targetPlatform === 'ps5'
+   519→            const isWeb = targetPlatform === 'web'
+   520→
+   521→            const properties = isQuest
+   522→              ? { os: 'Android', browser: 'Discord VR', device: 'Meta Quest' }
+   523→              : isMobile
+   524→              ? {
+   525→                  os: targetPlatform === 'ios' ? 'iOS' : 'Android',
+   526→                  browser: targetPlatform === 'ios' ? 'Discord iOS' : 'Discord Android',
+   527→                  device: targetPlatform === 'ios' ? 'iPhone' : (targetPlatform === 'samsung' ? 'Samsung Galaxy' : 'Android Device'),
+   528→                }
+   529→              : isConsole
+   530→              ? {
+   531→                  os: targetPlatform === 'xbox' ? 'Xbox' : 'PlayStation',
+   532→                  browser: targetPlatform === 'xbox' ? 'Discord Xbox' : 'Discord PlayStation',
+   533→                  device: targetPlatform === 'xbox' ? 'Xbox Series X' : 'PlayStation 5',
+   534→                }
+   535→              : isWeb
+   536→              ? { os: 'Windows', browser: 'Discord Web', device: 'Chrome' }
+   537→              : { os: 'Windows', browser: 'Discord Client', device: 'Desktop' }
+   538→
+   539→            const bearerToken = accessToken.startsWith('Bearer ') ? accessToken : `Bearer ${accessToken}`
+   540→            const identify = {
+   541→              op: 2,
+   542→              d: {
+   543→                token: bearerToken,
+   544→                properties,
+   545→              },
+   546→            }
+   547→            ws.send(JSON.stringify(identify))
+   548→          } else if (op === 11) {
+   549→            // Heartbeat ACK
+   550→            userSock.heartbeatAck = true
+   551→          } else if (op === 1) {
+   552→            // Server requested heartbeat
+   553→            ws.send(JSON.stringify({ op: 1, d: null }))
+   554→          } else if (op === 0 && t === 'READY') {
+   555→            // Authenticated and ready! Only trigger initial presence push on READY (NOT on SESSIONS_REPLACE to avoid infinite loop)
+   556→            userSock.connected = true
+   557→            userSock.isConnecting = false
+   558→            userSock.retryCount = 0
+   559→            userSock.lastConnectedAt = new Date()
+   560→
+   561→            await db.session.update({
+   562→              where: { id: session.id },
+   563→              data: {
+   564→                gatewayReady: true,
+   565→                lastPresenceUpdate: new Date(),
+   566→              },
+   567→            }).catch(() => {})
+   568→
+   569→            // Push current presence immediately
+   570→            await this.pushPresenceForUser(userId, session, true)
+   571→          } else if (op === 7) {
+   572→            // Discord requested reconnect
+   573→            console.log(`[10X RPC Daemon] Discord Gateway sent OP 7 RECONNECT for user ${userId}. Reconnecting...`)
+   574→            this.cleanupSocket(userSock)
+   575→            this.scheduleReconnect(userId, 1000)
+   576→          } else if (op === 9) {
+   577→            // Invalid session
+   578→            console.warn(`[10X RPC Daemon] Discord Gateway sent OP 9 INVALID_SESSION for user ${userId}`)
+   579→            this.cleanupSocket(userSock)
+   580→            this.scheduleReconnect(userId, 3000)
+   581→          }
+   582→        } catch (err) {
+   583→          console.error(`[10X RPC Daemon] Error handling WS message for user ${userId}:`, err)
+   584→        }
+   585→      })
+   586→
+   587→      ws.on('error', (err) => {
+   588→        console.error(`[10X RPC Daemon] Gateway WS error for user ${userId}:`, err.message)
+   589→        userSock.connected = false
+   590→        userSock.isConnecting = false
+   591→        this.cleanupSocket(userSock)
+   592→        this.scheduleReconnect(userId)
+   593→      })
+   594→
+   595→      ws.on('close', async (code, reason) => {
+   596→        console.log(`[10X RPC Daemon] Gateway WS closed for user ${userId} (code: ${code}, reason: ${reason.toString() || 'none'})`)
+   597→        userSock.connected = false
+   598→        userSock.isConnecting = false
+   599→        this.cleanupSocket(userSock)
+   600→
+   601→        if (code === 4004) {
+   602→          // Auth failed — try refreshing token
+   603→          console.log(`[10X RPC Daemon] Auth failed (4004) for user ${userId}. Refreshing token...`)
+   604→          if (session.discordRefreshToken) {
+   605→            const refreshed = await refreshDiscordToken(session.discordRefreshToken)
+   606→            if (refreshed) {
+   607→              await db.session.update({
+   608→                where: { id: session.id },
+   609→                data: {
+   610→                  discordAccessToken: refreshed.access_token,
+   611→                  discordRefreshToken: refreshed.refresh_token,
+   612→                  discordTokenExpiresAt: new Date(Date.now() + (refreshed.expires_in || 604800) * 1000),
+   613→                },
+   614→              })
+   615→              this.scheduleReconnect(userId, 2000)
+   616→              return
+   617→            }
+   618→          }
+   619→        } else if (code === 4008) {
+   620→          // Rate limited — back off for 60 seconds to allow rate limit window to clear
+   621→          console.warn(`[10X RPC Daemon] Rate limited by Discord Gateway for user ${userId}. Backing off for 60s...`)
+   622→          this.scheduleReconnect(userId, 60000)
+   623→          return
+   624→        }
+   625→
+   626→        this.scheduleReconnect(userId)
+   627→      })
+   628→    } catch (err) {
+   629→      console.error(`[10X RPC Daemon] Failed to initialize connection for user ${userId}:`, err)
+   630→      userSock.connected = false
+   631→      userSock.isConnecting = false
+   632→      this.scheduleReconnect(userId)
+   633→    }
+   634→  }
+   635→
+   636→  /**
+   637→   * Schedule reconnection with exponential backoff.
+   638→   */
+   639→  private scheduleReconnect(userId: string, customDelayMs?: number): void {
+   640→    const userSock = this.sockets.get(userId)
+   641→    if (!userSock || userSock.retryTimer) return
+   642→
+   643→    const delay = customDelayMs ?? Math.min(30000, 1000 * Math.pow(1.5, Math.min(userSock.retryCount, 8)))
+   644→    userSock.retryCount++
+   645→
+   646→    userSock.retryTimer = setTimeout(() => {
+   647→      userSock.retryTimer = undefined
+   648→      this.connectUserSocket(userId)
+   649→    }, delay)
+   650→  }
+   651→
+   652→  /**
+   653→   * Build activities and send OP 3 for the user if anything changed or on reconnect.
+   654→   */
+   655→  private async pushPresenceForUser(userId: string, session: any, force: boolean = false): Promise<void> {
+   656→    const userSock = this.sockets.get(userId)
+   657→    if (!userSock || !userSock.ws || userSock.ws.readyState !== WebSocket.OPEN) return
+   658→
+   659→    let rpcConfig = null
+   660→    let globalConfig = null
+   661→    try {
+   662→      [rpcConfig, globalConfig] = await Promise.all([
+   663→        db.rpcConfig.findFirst({ where: { userId } }),
+   664→        db.globalConfig.findUnique({ where: { userId } }),
+   665→      ])
+   666→    } catch (dbErr) {
+   667→      console.warn(`[10X RPC Daemon] Transient DB error in pushPresenceForUser for user ${userId}:`, dbErr)
+   668→      return
+   669→    }
+   670→
+   671→    const placeholderCtx: PlaceholderContext = {
+   672→      timezone: globalConfig?.timezone || 'UTC',
+   673→      city: globalConfig?.city || undefined,
+   674→      rpcStartedAt: rpcConfig?.updatedAt
+   675→        ? new Date(rpcConfig.updatedAt).getTime()
+   676→        : (session.lastPresenceUpdate ? new Date(session.lastPresenceUpdate).getTime() : Date.now()),
+   677→    }
+   678→
+   679→    // DATABASE IS SINGLE SOURCE OF TRUTH:
+   680→    // Only send RPC if rpcConfig exists AND rpcConfig.enabled === true AND session.rpcEnabled === true
+   681→    const isRpcActive = !!(session.rpcEnabled && rpcConfig?.enabled)
+   682→    const isStatusActive = !!session.statusEnabled
+   683→
+   684→    const activePlatform = isStatusActive
+   685→      ? (session.statusPlatform || 'mobile')
+   686→      : (isRpcActive ? (rpcConfig?.platform || 'desktop') : (session.statusPlatform || 'mobile'))
+   687→    userSock.platform = activePlatform === 'meta_quest' ? 'meta_quest' : activePlatform
+   688→
+   689→    const activities = await buildPresenceActivities({
+   690→      rpcConfig: isRpcActive ? rpcConfig : null,
+   691→      customStatus: isStatusActive ? session.customStatus : null,
+   692→      customStatusEmoji: isStatusActive ? session.customStatusEmoji : null,
+   693→      placeholderCtx,
+   694→      vrStatusActive: (isStatusActive && session.statusPlatform === 'meta_quest') || (isRpcActive && rpcConfig?.platform === 'meta_quest'),
+   695→      platform: isRpcActive ? (rpcConfig?.platform || 'desktop') : (session.statusPlatform || 'mobile'),
+   696→    })
+   697→
+   698→    const status = isStatusActive ? (session.userStatus || 'online') : (isRpcActive ? 'online' : 'invisible')
+   699→    const activitiesHash = JSON.stringify({ status, activities })
+   700→
+   701→    // Avoid spamming identical OP 3 payloads unless forced (prevents rate limits)
+   702→    if (!force && userSock.lastActivitiesHash === activitiesHash && userSock.lastStatus === status) {
+   703→      return
+   704→    }
+   705→
+   706→    // If socket is open and payload is ready, send OP 3
+   707→    if (!userSock.ws || userSock.ws.readyState !== WebSocket.OPEN) return
+   708→
+   709→    try {
+   710→      console.log(`[10X RPC Daemon] Sending OP 3 for user ${userId}: status=${status}, activities=${JSON.stringify(activities)}`)
+   711→      userSock.ws.send(JSON.stringify({
+   712→        op: 3,
+   713→        d: {
+   714→          status,
+   715→          activities,
+   716→          afk: false,
+   717→          since: null,
+   718→        },
+   719→      }))
+   720→      userSock.lastStatus = status
+   721→      userSock.lastActivitiesHash = activitiesHash
+   722→    } catch (err) {
+   723→      console.error(`[10X RPC Daemon] Failed to send OP 3 for user ${userId}:`, err)
+   724→    }
+   725→  }
+   726→
+   727→  /**
+   728→   * Disconnect and remove a user from the daemon.
+   729→   */
+   730→  public disconnectUser(userId: string): void {
+   731→    const userSock = this.sockets.get(userId)
+   732→    if (!userSock) return
+   733→
+   734→    this.cleanupSocket(userSock)
+   735→    this.sockets.delete(userId)
+   736→    console.log(`[10X RPC Daemon] Disconnected user ${userId}`)
+   737→  }
+   738→
+   739→  /**
+   740→   * Clean up a socket and its timers.
+   741→   */
+   742→  private cleanupSocket(userSock: ActiveUserSocket): void {
+   743→    if (userSock.heartbeatTimer) {
+   744→      clearInterval(userSock.heartbeatTimer)
+   745→      userSock.heartbeatTimer = undefined
+   746→    }
+   747→    if (userSock.retryTimer) {
+   748→      clearTimeout(userSock.retryTimer)
+   749→      userSock.retryTimer = undefined
+   750→    }
+   751→    if (userSock.ws) {
+   752→      try {
+   753→        userSock.ws.removeAllListeners()
+   754→        userSock.ws.close()
+   755→      } catch {}
+   756→      userSock.ws = null
+   757→    }
+   758→    userSock.connected = false
+   759→    userSock.isConnecting = false
+   760→  }
+   761→
+   762→  /**
+   763→   * Get daemon metrics and status for health endpoint.
+   764→   */
+   765→  public getStatus() {
+   766→    return {
+   767→      running: this.isRunning,
+   768→      uptimeSeconds: Math.floor((Date.now() - this.startTime) / 1000),
+   769→      lastTickAt: this.lastTickAt,
+   770→      activeConnections: Array.from(this.sockets.values()).filter(s => s.connected).length,
+   771→      totalTrackedUsers: this.sockets.size,
+   772→      users: Array.from(this.sockets.values()).map(s => ({
+   773→        userId: s.userId,
+   774→        connected: s.connected,
+   775→        platform: s.platform,
+   776→        lastStatus: s.lastStatus,
+   777→        lastConnectedAt: s.lastConnectedAt,
+   778→      })),
+   779→    }
+   780→  }
+   781→}
+   782→
+   783→// Global singleton for Next.js and server environments
+   784→declare global {
+   785→  var __rpcDaemonInstance: RpcDaemon | undefined
+   786→}
+   787→
+   788→export function getRpcDaemon(): RpcDaemon {
+   789→  if (!global.__rpcDaemonInstance) {
+   790→    global.__rpcDaemonInstance = new RpcDaemon()
+   791→  }
+   792→  return global.__rpcDaemonInstance
+   793→}
+   794→
+   795→/**
+   796→ * Helper to ensure the 24/7 daemon is started.
+   797→ */
+   798→export function ensureDaemonRunning(): RpcDaemon {
+   799→  const daemon = getRpcDaemon()
+   800→  daemon.start().catch(err => {
+   801→    console.error('[10X RPC Daemon] Failed to start daemon:', err)
+   802→  })
+   803→  return daemon
+   804→}
+   805→

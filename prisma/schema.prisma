@@ -1,0 +1,175 @@
+// 10X RPC — Prisma schema (SQLite for local/dev sandbox)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String   @id @default(cuid())
+  discordId     String   @unique
+  username      String
+  discriminator String?
+  avatar        String?
+  backgroundUrl String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  sessions        Session[]
+  rpcConfigs      RpcConfig[]
+  gameConfigs     GameConfig[]
+  rotatorPresets  RotatorPreset[]
+  globalConfig    GlobalConfig?
+  trial           Trial?
+}
+
+model Session {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token           String   @unique
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  // Discord OAuth tokens (stored server-side only, never sent to client)
+  discordAccessToken    String?
+  discordRefreshToken   String?
+  discordTokenExpiresAt DateTime?
+
+  // Status & RPC state (completely independent)
+  statusEnabled      Boolean  @default(false)
+  rpcEnabled         Boolean  @default(false)
+  gatewayReady       Boolean  @default(false)
+  userStatus         String   @default("online")
+  customStatus       String?
+  customStatusEmoji  String?
+  statusPlatform     String   @default("mobile")
+  lastPresenceUpdate DateTime?
+
+  // VR / Meta Quest state
+  vrStatusActive     Boolean  @default(false)
+  vrSessionToken     String?
+  vrMetaAccessToken  String?
+  vrMetaRefreshToken String?
+  vrMetaTokenExpires DateTime?
+
+  // Smart sleep timer
+  sleepTimerActive Boolean  @default(false)
+  sleepTimerEndsAt DateTime?
+
+  @@index([userId])
+}
+
+model RpcConfig {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String   @default("10X RPC")
+  type         String   @default("PLAYING")
+  platform     String   @default("desktop")
+  state        String?
+  details      String?
+  largeImage   String?
+  largeText    String?
+  smallImage   String?
+  smallText    String?
+  button1Label String?
+  button1Url   String?
+  button2Label String?
+  button2Url   String?
+  partyCurrent Int?
+  partyMax     Int?
+  partyId      String?
+  partySecret  String?
+  startMinsAgo Int      @default(0)
+  endTotalMins Int?
+  enabled      Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model GameConfig {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameSlug     String
+  gameName     String
+  enabled      Boolean  @default(false)
+  platform     String   @default("desktop")
+  state        String?
+  details      String?
+  largeImage   String?
+  largeText    String?
+  smallImage   String?
+  smallText    String?
+  button1Label String?
+  button1Url   String?
+  button2Label String?
+  button2Url   String?
+  partyCurrent Int      @default(1)
+  partyMax     Int      @default(5)
+  partyId      String?
+  partySecret  String?
+  startMinsAgo Int      @default(0)
+  endTotalMins Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, gameSlug])
+  @@index([userId])
+}
+
+model RotatorPreset {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emoji        String?
+  text         String
+  durationMins Int      @default(5)
+  order        Int      @default(0)
+  enabled      Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([userId])
+}
+
+model GlobalConfig {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  city                String?
+  timezone            String   @default("Asia/Calcutta")
+  rotatorEnabled      Boolean  @default(false)
+  rotatorIntervalMins Int      @default(5)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Trial {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startsAt  DateTime @default(now())
+  endsAt    DateTime
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+model OAuthState {
+  id        String   @id @default(cuid())
+  state     String   @unique
+  verifier  String
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([state])
+}
