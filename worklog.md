@@ -497,3 +497,41 @@ Stage Summary:
 - Custom image URLs are automatically uploaded as Discord app assets (via bot token) and the asset key is used.
 - This is the ONLY working method for the Gaming SDK gateway — mp:external and raw URLs are silently dropped.
 - For Games RPC with no custom image: Discord shows the game's official icon via application_id (already working).
+
+---
+Task ID: 15
+Agent: main (Z.ai Code)
+Task: Fix Normal RPC image not showing — found and fixed the root cause.
+
+Root Cause (CONFIRMED via /debug-payload endpoint):
+- The daemon was sending large_image = "mp:external/<base64>" instead of the asset key.
+- The asset upload (uploadImageAsAsset) was FAILING silently because:
+  * The function uses hashUrl(url) to generate a deterministic asset key (e.g., "10xrpc_rds2a")
+  * On first deploy, the asset was uploaded successfully and the key was cached in memory
+  * On daemon restart (new deploy), the in-memory cache was cleared
+  * The daemon tried to upload the image again with the SAME key
+  * Discord's API rejected the create step with "key already exists" (HTTP 400)
+  * uploadImageAsAsset caught the error and returned null
+  * resolveImageToAssetKey fell back to mp:external/<base64> (which doesn't work on the Gaming SDK gateway)
+  * Discord displayed a BLANK image
+
+Fix:
+- Updated uploadImageAsAsset() in discord-assets.ts:
+  1. Before uploading, LIST existing assets and check if the key already exists
+  2. If found, return the existing asset (cache it in memory)
+  3. If not found, proceed with the 3-step upload
+  4. If the create step STILL fails (race condition), list again and find the existing asset
+- This ensures the daemon always uses the asset KEY (not mp:external) even after restarts.
+
+Verification:
+- /debug-payload endpoint now shows: large_image = "10xrpc_j15jbi" (ASSET KEY ✅)
+- Previously showed: large_image = "mp:external/aHR0cHM..." (BROKEN)
+- Daemon sync: ok=True
+- Asset upload test: all 4 steps pass (download, getUploadUrl, uploadToGCS, createAsset)
+- Node version on Render: v24.21.0 (fetch available)
+- Bot token: set
+- Assets count: 5 (including the user's uploaded image)
+
+Deployed:
+- Vercel: live with updated discord-assets.ts
+- Render: live with synced discord-assets.ts (rebuilt with cache clear)
