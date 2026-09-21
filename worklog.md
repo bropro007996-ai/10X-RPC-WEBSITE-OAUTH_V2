@@ -108,3 +108,36 @@ Stage Summary:
 - To deploy for real: push the repo to GitHub → Vercel import (env vars from .env.production.example, with the Neon URLs) → Render Blueprint (deploy/render.yaml in backend repo).
 - REMINDER: rotate the Neon password before production deploy (it was shared in chat).
 - To revert sandbox to SQLite demo: bash scripts/use-sqlite.sh, remove .env.local, restart.
+
+---
+Task ID: 4
+Agent: main (Z.ai Code)
+Task: Deploy the 10X RPC split deployment — Vercel frontend + Render backend — using the user's provided tokens.
+
+Work Log:
+- Verified all tokens: Vercel CLI installed (v59.23.2), Render API key → owner "Bropro's workspace" (tea-dakdavbm8hqs73e6t45g), GitHub PAT → user bropro007996-ai.
+- Vercel frontend deploy:
+  * Created project "10x-rpc" (id: prj_JGtMS2pru5S1lCbrpJGumHsMT4wm) via POST /v10/projects.
+  * Set 11 env vars via POST /v9/projects/{id}/env API (DATABASE_URL pooled + direct, SESSION_SECRET [openssl rand -hex 32], Discord ID/secret/bot token, server ID, invite URL, OAuth scope, NEXT_PUBLIC_APP_URL, DISCORD_REDIRECT_URI).
+  * Linked local dir via .vercel/project.json (projectId + orgId=team_ijOn2lbW7r0gklYNMBqLvLBi). .vercel is gitignored.
+  * Deployed: `vercel --prod --token=TOKEN --yes` → build completed in 34s, deployed in 1m.
+  * Production URL: https://10x-rpc.vercel.app (aliased from https://10x-iqknlngsa-ai-fc44.vercel.app).
+  * Verified: GET / (200), /api/me (200), /api/games/list (200, returns games), demo-login works (creates DemoUser in Neon), /auth/discord returns 307 (redirect to Discord OAuth).
+- Render backend deploy:
+  * Created web service via POST /v1/services with: type=web_service, name=10x-rpc-backend, ownerId, repo=Sanjay007yt/10X-RPC-WEBSITE-OAUTH-BACKEND-SERVER_V2, branch=main, runtime=node, buildCommand=npm install, startCommand=node index.js, plan=free, healthCheckPath=/health.
+  * Hit 3 API validation errors before success: ownerId (not owner), serviceDetails wrapper, envSpecificDetails inside serviceDetails.
+  * Set 11 env vars (same SESSION_SECRET as Vercel — critical for session cookie sharing).
+  * Deploy went live in 45 seconds (build: npm install + postinstall prisma generate).
+  * Render assigned URL: https://one0x-rpc-backend-wv36.onrender.com (added suffix due to name collision).
+  * Health check: {"status":"ok","service":"10x-rpc-gateway-daemon","uptime":181s}.
+  * Dashboard: https://dashboard.render.com/web/srv-daodpa3tqb8s73eumvtg.
+- Full stack verified: Vercel ↔ Neon ↔ Render, all live.
+- Discord redirect URI answered: https://10x-rpc.vercel.app/auth/callback (user must paste this into Discord Developer Portal → OAuth2 → Redirects — the ONE remaining manual step).
+
+Stage Summary:
+- Vercel frontend LIVE: https://10x-rpc.vercel.app
+- Render backend LIVE: https://one0x-rpc-backend-wv36.onrender.com
+- Neon Postgres: shared, both services connected.
+- One manual step remains: Discord Developer Portal → OAuth2 → Redirects → add https://10x-rpc.vercel.app/auth/callback.
+- After that, the full OAuth flow → Discord Rich Presence pipeline is operational.
+- CRITICAL: user must rotate ALL tokens (GitHub PAT, Vercel, Render, Discord secret+bot token, Neon password) — all were shared in chat.
