@@ -1,0 +1,53 @@
+# Render Blueprint for 10X RPC Backend Daemon
+# ============================================================
+# Copy this render.yaml into the ROOT of the backend repo
+# (Sanjay007yt/10X-RPC-WEBSITE-OAUTH-BACKEND-SERVER_V2), commit, and push.
+#
+# Then in Render: Dashboard → New + → Blueprint → select the backend repo.
+# Render auto-creates the web service with the correct settings + health check.
+#
+# The backend is a lightweight Node.js daemon that:
+#   1. Serves an HTTP /health endpoint (Render uptime checks / panel monitoring).
+#   2. Spawns the 24/7 Discord RPC & Status daemon (scripts/rpc-daemon-standalone.ts).
+#   3. Maintains persistent Discord Gateway WebSocket connections for all active users.
+#   4. Shares the SAME Neon Postgres database as the Vercel frontend.
+# ============================================================
+
+services:
+  - type: web
+    name: 10x-rpc-backend
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: ./
+    buildCommand: npm install
+    startCommand: node index.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      # Secrets — set these in the Render dashboard after Blueprint creation
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_URL_UNPOOLED
+        sync: false
+      - key: SESSION_SECRET
+        sync: false
+      - key: DISCORD_CLIENT_ID
+        sync: false
+      - key: DISCORD_CLIENT_SECRET
+        sync: false
+      - key: DISCORD_BOT_TOKEN
+        sync: false
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false
+      - key: DISCORD_REDIRECT_URI
+        sync: false
+      # Non-secret defaults
+      - key: DISCORD_SERVER_ID
+        value: "1549302358926823496"
+      - key: DISCORD_INVITE_URL
+        value: "https://discord.gg/jr27qeCZU"
+      - key: DISCORD_OAUTH_SCOPE
+        value: "openid identify sdk.social_layer_presence"

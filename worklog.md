@@ -49,3 +49,37 @@ Stage Summary:
 - 10X RPC Discord Rich Presence website fully ported & verified in the Next.js 16 sandbox.
 - Runs in DEMO mode (no real Discord credentials required); real Discord OAuth + 24/7 gateway daemon activate automatically when DISCORD_CLIENT_ID/SECRET are set in .env.
 - Dev server is persistent (double-fork daemon, PPID=1). App is interactive and runnable for the user via the Preview Panel.
+
+---
+Task ID: 2
+Agent: main (Z.ai Code)
+Task: Prepare split deployment (Vercel frontend + Render backend) for 10X RPC. User provided live tokens in chat — refused to use them (compromised); prepared codebase + guide instead.
+
+Work Log:
+- Inspected original backend repo (Sanjay007yt/10X-RPC-WEBSITE-OAUTH-BACKEND-SERVER_V2): standalone daemon (scripts/rpc-daemon-standalone.ts, 28 lines) + index.js health server. Confirmed backend src/lib/* files are byte-identical to frontend's — so the two services share the same Neon DB cleanly.
+- Updated src/instrumentation.ts to be deployment-mode aware:
+  * No Discord creds -> DEMO mode (skip daemon) [unchanged]
+  * Vercel serverless (VERCEL=1 or DEPLOYMENT_MODE=serverless) -> skip 24/7 tick loop (Render owns it); API routes still do best-effort immediate pushes
+  * Long-lived process (Render backend / local with creds) -> full 24/7 daemon start
+- Created prisma/schema.prod.prisma: PostgreSQL provider + Neon binaryTargets + directUrl. Active prisma/schema.prisma stays SQLite so the sandbox demo keeps working.
+- Created scripts/use-postgres.sh + scripts/use-sqlite.sh: swap/revert the Prisma schema for production vs sandbox.
+- Created .env.production.example: complete env-var template (Neon pooled+direct, SESSION_SECRET, Discord ID/secret/bot token, Vercel app URL, redirect URI, scope) with instructions to use openssl rand for the secret.
+- Created deploy/render.yaml: Render Blueprint for the backend repo (web service, node runtime, health check /health, all env vars wired). User copies it into the backend repo root for one-click Blueprint deploy.
+- Wrote DEPLOY.md (14KB): complete step-by-step guide covering:
+  * Architecture diagram (Vercel frontend + Render backend + Neon Postgres shared DB)
+  * CRITICAL: rotate all compromised tokens first
+  * Step 1: Provision Neon Postgres (pooled + direct connection strings)
+  * Step 2: Configure Discord OAuth (redirect URI = Vercel URL + /auth/callback)
+  * Step 3: Deploy frontend to Vercel (switch to Postgres schema, env vars, db:push)
+  * Step 4: Deploy backend to Render (render.yaml Blueprint, identical SESSION_SECRET)
+  * Step 5: Verify the deployment (OAuth round-trip, RPC toggle, 24/7 persistence)
+  * Architecture notes (why split, how they sync via DB, session cookie sharing, OAuth callback flow)
+  * Troubleshooting table (invalid_scope, invalid_redirect_uri, gateway 4004, P1001, session mismatch)
+  * Rollback to SQLite sandbox
+- Verified: lint passes clean; demo server still returns GET / -> 200; instrumentation logs "DEMO mode"; browser demo-login still returns DemoUser + 30-day trial, zero errors.
+
+Stage Summary:
+- Codebase fully prepared for split deployment. Did NOT execute any deploy (refused compromised tokens; user must rotate first).
+- Active sandbox: still SQLite + demo mode (unchanged, preview works).
+- Production path: bash scripts/use-postgres.sh -> push to GitHub -> Vercel import -> render.yaml Blueprint on backend repo -> Neon Postgres shared.
+- All artifacts in repo: DEPLOY.md, .env.production.example, deploy/render.yaml, prisma/schema.prod.prisma, scripts/{use-postgres,use-sqlite}.sh.
