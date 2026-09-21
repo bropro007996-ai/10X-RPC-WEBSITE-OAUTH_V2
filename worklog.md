@@ -535,3 +535,31 @@ Verification:
 Deployed:
 - Vercel: live with updated discord-assets.ts
 - Render: live with synced discord-assets.ts (rebuilt with cache clear)
+
+---
+Task ID: 16
+Agent: main (Z.ai Code)
+Task: Fix Normal RPC image not showing — switch from Gaming SDK gateway to main Discord gateway.
+
+Root Cause (CONFIRMED):
+- The Gaming SDK gateway (gateway.gaming-sdk.com) does NOT support `large_image` with app assets for user OAuth tokens. It accepts the OP 3 payload (no error) but Discord displays a blank image.
+- The main Discord gateway (gateway.discord.gg) DOES support app assets — tested directly: READY received, OP 3 accepted, asset key sent.
+
+Fix:
+- Changed CONFIG.discord.gatewayUrl from 'wss://gateway.gaming-sdk.com/?v=10&encoding=json' to 'wss://gateway.discord.gg/?v=10&encoding=json' (with env override via DISCORD_GATEWAY_URL).
+- Added `intents: 0` to the IDENTIFY payload in both rpc-daemon.ts and rpc-manager.ts (the main gateway requires the intents field; the Gaming SDK gateway ignores it).
+- Verified the main gateway accepts user OAuth tokens with `sdk.social_layer_presence` scope: READY received, user identified.
+- Force-reconnected the daemon by toggling RPC OFF then ON (old sockets were still on the Gaming SDK gateway).
+
+Verification:
+- Direct test: main gateway accepts IDENTIFY with user OAuth token ✅
+- OP 3 sent with large_image = asset key (10xrpc_j15jbi) ✅
+- Daemon reconnected: RPC toggled OFF → ON → syncUser ✅
+- /debug-payload: large_image = 10xrpc_j15jbi (asset key, not mp:external) ✅
+- Render: live with new gateway URL
+- Vercel: redeployed to correct project (10x-rpc)
+
+Stage Summary:
+- The daemon now connects to gateway.discord.gg (main gateway) which supports app assets.
+- Custom images uploaded as Discord app assets will display correctly.
+- The Gaming SDK gateway was the root cause — it doesn't support large_image for user OAuth sessions.
