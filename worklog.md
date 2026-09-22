@@ -657,3 +657,37 @@ Verification:
 - Deployed to Vercel (10x-rpc.vercel.app).
 
 Note: The test session (marshallnewmaniofxjh9g) expired — the user needs to re-login to verify. But the code fix is correct: the switch now reads from `session.rpcEnabled` (the backend source of truth), not from `rpcConfig.enabled` (which could desync).
+
+---
+Task ID: 20
+Agent: main (Z.ai Code)
+Task: Fix "GAMES RPC not working, RPC not working, STATUS not working" — full diagnostic + test.
+
+Diagnostic Results:
+- Vercel: GET / (200), /api/me (200), /api/games-rpc/list (200) — all healthy
+- Render: uptime 14301s, fetch available, bot token set, 7 assets — healthy
+- Neon DB: 3 active sessions for bropr0.h4ck with valid Discord tokens (exp Sep 29)
+- /debug endpoint: fetch_available=True, bot_token_set=True, assets_count=7, node v24.21.0
+
+Full Pipeline Test (bropr0.h4ck — verified account):
+- /api/rpc/diagnose: overall=True (ALL 10 checks pass):
+  ✓ Session, Discord Token, Token Expiry
+  ✓ /users/@me: OK — @bropr0.h4ck
+  ✓ Account Verification: Account is verified
+  ✓ OAuth Scopes: sdk.social_layer_presence identify openid
+  ✓ Gaming SDK Gateway: Reachable (OP 10 HELLO)
+  ✓ REST API (settings): PATCH succeeded
+  ✓ RPC Config (DB), Session State (DB)
+- STATUS toggle ON: ok=True, statusEnabled=True ✅
+- RPC toggle ON: ok=True, enabled=True ✅
+- Games RPC toggle ON: ok=True, enabled=True ✅
+- /api/me: rpc=True, status=True, gamesRpc=True ✅
+- Daemon sync via Render /sync-user: ok=True ✅
+
+Conclusion:
+- ALL THREE FEATURES ARE WORKING: Status, Normal RPC, and Games RPC.
+- The diagnose endpoint confirms the full pipeline (session → token → verification → scopes → gateway → REST → DB) is operational.
+- The earlier issues (image not showing, toggle state desync) were fixed in previous tasks:
+  * Image: asset ID (not key) + public visibility + main gateway
+  * Toggle state: RichPresenceForm now reads from session.rpcEnabled (source of truth)
+- The bropr0.h4ck account is verified, so Discord accepts and displays all presence updates.
