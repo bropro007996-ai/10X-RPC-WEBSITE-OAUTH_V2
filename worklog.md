@@ -727,3 +727,31 @@ Stage Summary:
 - THE ROOT CAUSE WAS: the daemon read the oldest session (expired token) instead of the newest valid one.
 - After fixing the DB query, the daemon immediately connected and pushed presence to Discord.
 - ALL THREE features now work: Status (custom status "Gg"), Normal RPC, and Games RPC (Minecraft with official icon).
+
+---
+Task ID: 22
+Agent: main (Z.ai Code)
+Task: Fix "RPC button not working" — daemon IDENTIFIED as meta_quest, causing Discord to reject desktop RPC activities.
+
+Root Cause:
+- The daemon's connectUserSocket() and pushPresenceForUser() determined the IDENTIFY platform from `session.statusPlatform` when `statusEnabled` was true.
+- The user's `statusPlatform` was `meta_quest` (VR), so the daemon IDENTIFIED as a Meta Quest VR device.
+- But the Normal RPC activity had `platform: desktop` (from rpcConfig).
+- Discord rejects type=0 (PLAYING) activities with platform=desktop when the session is IDENTIFIED as meta_quest — the activity is silently dropped.
+- Only the custom status (type=4) showed on Discord — the RPC activity with buttons was missing.
+
+Fix:
+- Updated connectUserSocket(): when RPC is active, use `rpcConfig.platform` (desktop) for IDENTIFY, not `session.statusPlatform` (meta_quest).
+- Updated pushPresenceForUser(): same fix — use RPC platform when RPC is active.
+- Also added `&& !isRpcActive` to the isQuest condition so VR identification only happens when RPC is NOT active.
+
+Verification:
+- /debug-daemon: connected=True, platform=desktop ✅ (was meta_quest before)
+- /debug-payload: normalActivity has buttons + platform=desktop + application_id ✅
+- Daemon is connected and pushing with the correct platform.
+- The RPC activity with buttons should now display on Discord.
+
+Deployed:
+- Vercel: live
+- Render: live (commit e8bc3eb6)
+- Backend fork: synced
