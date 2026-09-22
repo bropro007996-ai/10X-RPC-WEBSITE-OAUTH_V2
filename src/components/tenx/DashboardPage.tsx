@@ -169,6 +169,7 @@ export function DashboardPage() {
         {/* Rich presence form (Normal RPC) */}
         <RichPresenceForm
           initial={me.rpcConfig}
+          rpcEnabled={me.session?.rpcEnabled ?? false}
           onChange={setLiveRpcConfig}
           onSaved={() => {
             setLiveRpcConfig(null)

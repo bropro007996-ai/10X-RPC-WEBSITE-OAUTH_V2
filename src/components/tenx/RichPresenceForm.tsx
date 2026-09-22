@@ -44,16 +44,17 @@ const DEFAULT_CONFIG: RpcConfig = {
 }
 
 export function RichPresenceForm({
-  initial, onSaved, onToggle, onChange,
+  initial, rpcEnabled, onSaved, onToggle, onChange,
 }: {
   initial: RpcConfig | null | undefined
+  rpcEnabled: boolean
   onSaved?: () => void
   onToggle?: (v: boolean) => void
   onChange?: (cfg: RpcConfig) => void
 }) {
   const [cfg, setCfg] = useState<RpcConfig>(initial || DEFAULT_CONFIG)
   const [saving, setSaving] = useState(false)
-  const [enabled, setEnabled] = useState(initial?.enabled ?? false)
+  const [enabled, setEnabled] = useState(rpcEnabled)
   const [diagnosing, setDiagnosing] = useState(false)
   const [diagnoseResult, setDiagnoseResult] = useState<DiagnoseResult | null>(null)
 
@@ -118,11 +119,12 @@ export function RichPresenceForm({
         partySecret: initial.partySecret ?? '',
         startMinsAgo: initial.startMinsAgo ?? 0,
         endTotalMins: initial.endTotalMins ?? null,
-        enabled: initial.enabled ?? false,
+        enabled: rpcEnabled,
       })
-      setEnabled(initial.enabled ?? false)
     }
-  }, [initial])
+    // Sync the toggle state with the backend's rpcEnabled (source of truth)
+    setEnabled(rpcEnabled)
+  }, [initial, rpcEnabled])
 
   const set = <K extends keyof RpcConfig>(key: K, value: RpcConfig[K]) => {
     setCfg(prev => {
