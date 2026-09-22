@@ -755,3 +755,30 @@ Deployed:
 - Vercel: live
 - Render: live (commit e8bc3eb6)
 - Backend fork: synced
+
+---
+Task ID: 23
+Agent: main (Z.ai Code)
+Task: Fix "RPC buttons cause entire RPC to not show" — make buttons strictly optional.
+
+Root Cause:
+- When button fields contained any value (even empty strings or whitespace), the buttons + metadata.button_urls were attached to the activity payload.
+- Discord's gateway silently drops the ENTIRE activity (not just the buttons) when the buttons block is malformed or unsupported.
+- This meant: RPC without buttons = works; RPC with buttons = entire RPC disappears.
+
+Fix:
+- Updated buildActivityPayload (Normal RPC) and buildGameActivityPayload (Games RPC):
+  1. Trim button labels and URLs before validation
+  2. Only include a button if BOTH label (non-empty after trim) AND URL (starts with http:// or https://) are valid
+  3. Only attach the buttons/metadata block if at least one valid button exists
+  4. If no valid buttons, the buttons and metadata fields are OMITTED entirely — the RPC always displays
+
+Verification (3 test scenarios):
+1. RPC WITHOUT buttons: buttons=[], metadata={} → RPC shows ✅
+2. RPC WITH valid buttons (Join + Watch): buttons included → RPC shows ✅
+3. RPC with INVALID button (label but empty URL): buttons=[], metadata={} → RPC shows ✅ (invalid button correctly filtered out)
+
+Deployed:
+- Vercel: live
+- Render: live (commit 51e44c89)
+- Backend fork: synced
