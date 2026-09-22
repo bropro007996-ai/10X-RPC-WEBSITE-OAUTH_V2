@@ -596,3 +596,37 @@ Stage Summary:
 - Private assets are NOT displayed in Rich Presence — Discord shows a blank image area.
 - Fixed by PATCHing each asset to "public" visibility after upload.
 - The daemon now automatically sets new assets to public, and patches existing private assets to public on sync.
+
+---
+Task ID: 18
+Agent: main (Z.ai Code)
+Task: Fix Normal RPC image not showing — root cause was using asset KEY instead of asset ID.
+
+Root Cause (CONFIRMED via SESSIONS_REPLACE echo):
+- Discord's gateway accepts the OP 3 payload with large_image = asset KEY (string like "10xrpc_j15jbi") without error.
+- BUT Discord silently STRIPS the assets block from the stored activity — the SESSIONS_REPLACE echo showed NO assets field.
+- This is why the image was blank: Discord accepted the activity but removed the image reference.
+- When using the asset ID (numeric string like "1551575304546287640"), Discord PRESERVES the assets block in the echo:
+  "assets": {"large_text":"App Icon","large_image":"1551575304546287640"}
+
+Fix:
+- Updated resolveImageToAssetKey() in discord-assets.ts to return asset.assetId (the numeric ID) instead of asset.key (the string key).
+- The daemon now sends large_image = "1551575304546287640" (asset ID) instead of "10xrpc_j15jbi" (asset key).
+- Verified via /debug-payload: large_image = 1551575304546287640 ✅
+- Verified via direct gateway test: SESSIONS_REPLACE echo preserves the assets block ✅
+
+Verification:
+- /debug-payload: large_image = 1551575304546287640 (ASSET ID, numeric) ✅
+- Direct gateway test: ECHO assets: {"large_text":"App Icon","large_image":"1551575304546287640"} ✅
+- The assets block is NO LONGER stripped by Discord — the image will display.
+
+Deployed:
+- Vercel: live
+- Render: live (rebuilt with updated discord-assets.ts)
+- Backend fork: synced
+
+Stage Summary:
+- Discord's gateway requires the ASSET ID (numeric), NOT the asset KEY (string).
+- Using the key causes Discord to silently strip the assets block → blank image.
+- Using the ID preserves the assets block → image displays.
+- This was the final missing piece — the image should now show on Discord.
