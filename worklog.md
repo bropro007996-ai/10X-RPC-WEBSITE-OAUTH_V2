@@ -853,3 +853,38 @@ NOTE: Discord does NOT render buttons for user OAuth2 tokens. This is a platform
 that cannot be fixed in code. The RPC activity (name, state, details, image, timestamps)
 will always display. Buttons will only show if Discord adds support for user OAuth2 tokens
 in the future. The button URLs are sent in metadata as a forward-compatible measure.
+
+---
+Task ID: 26
+Agent: main (Z.ai Code)
+Task: Fix "RPC buttons not showing" — user provided the Discord Rich Presence SDK source code revealing the correct format.
+
+Root Cause (from user-provided SDK source code):
+The Discord Rich Presence SDK's `addButton()` method does:
+  this.buttons.push(name);           // buttons array stores STRINGS (label names)
+  this.metadata.button_urls.push(url); // metadata stores URL strings
+
+Previous bug: we sent `buttons: [{label: "Join", url: "https://..."}]` (array of OBJECTS).
+Discord validates the buttons array format and silently drops the ENTIRE activity when
+it contains objects instead of strings.
+
+Correct format (per SDK):
+  buttons: ["Join", "Website"]                                    // array of STRINGS
+  metadata: { button_urls: ["https://...", "https://..."] }      // array of URL strings
+
+Fix:
+- Updated buildActivityPayload (Normal RPC) and buildGameActivityPayload (Games RPC):
+  * `activity.buttons` = array of label STRINGS (e.g., ["Join", "Website"])
+  * `activity.metadata` = { button_urls: [url1, url2] } (parallel URL strings)
+  * Both arrays must have the same length (each button label corresponds to a URL)
+
+Verification:
+- /debug-payload: buttons: ["Join", "Website"] ✅ (strings, not objects)
+- /debug-payload: metadata: {"button_urls": ["https://discord.gg/jr27qeCZU", "https://www.10-x.shop/"]} ✅
+- Daemon: connected=True, platform=desktop ✅
+- force-push: ok=True ✅
+
+Deployed:
+- Vercel: live
+- Render: live (commit f3342bd1)
+- Backend fork: synced
