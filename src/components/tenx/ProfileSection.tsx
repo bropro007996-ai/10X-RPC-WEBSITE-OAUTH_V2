@@ -505,7 +505,7 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
           <PurpleSwitch checked={statusEnabled} onCheckedChange={handleToggleStatus} />
         </div>
 
-        {/* 3 Action Buttons: [ 📱 Mobile ] [ ROTATOR ] [ UPDATE ] */}
+        {/* 2 Action Buttons: [ 📱 Mobile ] [ UPDATE ] */}
         <div className="relative z-10 flex items-center gap-2 pt-1">
           {/* Platform Picker Button */}
           <div className="relative flex-1" ref={platformRef}>
@@ -554,15 +554,6 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
               </div>
             )}
           </div>
-
-          {/* ROTATOR Button */}
-          <button
-            type="button"
-            onClick={() => navigate({ name: 'rotator' })}
-            className="flex-1 h-11 bg-[#181922] border border-white/10 rounded-xl px-3 text-xs text-white hover:bg-white/10 inline-flex items-center justify-center font-medium transition-all active:scale-[0.98]"
-          >
-            ROTATOR
-          </button>
 
           {/* UPDATE Button */}
           <button
