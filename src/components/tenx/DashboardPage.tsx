@@ -4,7 +4,6 @@ import { useEffect, useState, useCallback } from 'react'
 import { api, type Me, type RpcConfig } from '@/lib/api-client'
 import { useRouter } from './useRouter'
 import { ProfileSection } from './ProfileSection'
-import { SmartSleepTimerCard } from './SmartSleepTimerCard'
 import { RichPresenceForm } from './RichPresenceForm'
 import { GamesRpcForm } from './GamesRpcForm'
 import { SubscriptionPanel } from './SubscriptionPanel'
@@ -161,12 +160,6 @@ export function DashboardPage() {
         <ProfileSection
           me={liveRpcConfig ? { ...me, rpcConfig: { ...me.rpcConfig, ...liveRpcConfig } } : me}
           onRefresh={refresh}
-        />
-
-        {/* Smart sleep timer */}
-        <SmartSleepTimerCard
-          currentEndsAt={me.session?.sleepTimerActive ? me.session?.sleepTimerEndsAt : null}
-          onSaved={refresh}
         />
 
         {/* Subscription panel */}
