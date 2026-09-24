@@ -1135,3 +1135,38 @@ All Feature Tests:
 
 Conclusion: ALL features working correctly for verified accounts.
 The bropro007.h4ck account needs Discord verification (email/phone) — this is a Discord platform requirement, not a code issue.
+
+---
+Task ID: 33
+Agent: main (Z.ai Code)
+Task: Add a Profile page + fix bugs + test everything.
+
+New Profile Page (#/profile):
+- Created src/components/tenx/ProfilePage.tsx — full user profile page with:
+  * Profile card: avatar + RPC live indicator + username + subscription badge (PRO/LIFETIME/etc)
+  * Set Background button (opens modal to set/clear background image URL with preview)
+  * Stats grid: RPC status, Gateway status, Plan, Days Left
+  * Session Details card: Discord status, custom status, platform, token, gateway, VR, sleep timer, last update
+  * RPC Configuration summary: name, type, platform, state, details, buttons, enabled
+  * Games RPC summary: game slug, enabled
+  * Quick Actions: Dashboard, Settings, Rotator, Admin (if admin)
+  * Logout button
+- Added 'profile' route to useRouter.ts (parseHash + toHash)
+- Added ProfilePage to page.tsx routing
+
+Verification:
+- Lint: clean ✅
+- Browser test: #/profile loads with zero errors ✅
+- All sections visible: Profile, Session Details, RPC Configuration, Games RPC, Quick Actions ✅
+- /api/me: auth=true, user=bropro007.h4ck, sub=Pro (3 Months), rpc=true ✅
+- Logout button works
+- Set Background modal works
+- Quick Actions navigation works (Dashboard, Settings, Rotator, Admin)
+
+All other features verified:
+- Dashboard: all toggles + presets + subscription panel ✅
+- Admin panel: stats, daemon status, templates, user list ✅
+- Razorpay: order creation works ✅
+- Daemon: connected, pushing RPC with buttons ✅
+
+Deployed: Vercel (10x-rpc.vercel.app)

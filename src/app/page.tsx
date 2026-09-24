@@ -8,6 +8,7 @@ import { GlobalConfigPage } from '@/components/tenx/GlobalConfigPage'
 import { StatusRotatorPage } from '@/components/tenx/StatusRotatorPage'
 import { OAuthConsentPage } from '@/components/tenx/OAuthConsentPage'
 import { AdminPage } from '@/components/tenx/AdminPage'
+import { ProfilePage } from '@/components/tenx/ProfilePage'
 import { api, type Me } from '@/lib/api-client'
 
 export default function Home() {
@@ -29,6 +30,7 @@ export default function Home() {
   if (route.name === 'home') return <LandingPage />
   if (route.name === 'oauth-consent') return <OAuthConsentPage />
   if (route.name === 'dashboard') return <DashboardPage />
+  if (route.name === 'profile') return <ProfilePage initial={me || undefined} />
   if (route.name === 'admin') return <AdminPage />
   if (route.name === 'config') {
     return (
