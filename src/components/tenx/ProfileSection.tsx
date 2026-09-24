@@ -4,9 +4,9 @@ import { useEffect, useState, useRef } from 'react'
 import { toast } from 'sonner'
 import { api, type Me } from '@/lib/api-client'
 import { useRouter } from './useRouter'
-import { Card, PurpleSwitch } from './ui'
+import { Card, PurpleSwitch, Badge } from './ui'
 import { DISCORD_STATUSES } from '@/lib/constants'
-import { Gamepad2, Globe, Monitor, Smartphone } from 'lucide-react'
+import { Crown, Zap, Wifi, WifiOff, Gamepad2, Globe, Monitor, Smartphone } from 'lucide-react'
 import { DiscordPreview } from './DiscordPreview'
 
 function VrIcon({ className = 'w-4 h-4' }: { className?: string }) {
@@ -27,6 +27,60 @@ const PLATFORM_ITEMS = [
   { value: 'web', label: 'Web', icon: Globe },
   { value: 'meta_quest', label: 'VR', icon: VrIcon },
 ]
+
+// === Quick status presets ===
+const QUICK_PRESETS = [
+  { emoji: '🎮', label: 'Playing' },
+  { emoji: '💻', label: 'Coding' },
+  { emoji: '🎵', label: 'Listening to music' },
+  { emoji: '😴', label: 'AFK' },
+] as const
+
+// === Trial total days used for the countdown bar percentage ===
+const TRIAL_TOTAL_DAYS = 14
+
+// === Subscription badge resolver ===
+type SubBadge = { label: string; Icon: typeof Crown | null; className: string }
+
+function getSubscriptionBadge(sub: Me['subscription']): SubBadge | null {
+  if (!sub) return null
+
+  if (!sub.active) {
+    return { label: 'EXPIRED', Icon: null, className: 'bg-red-500/15 text-red-400 border-red-500/30' }
+  }
+  if (sub.isLifetime) {
+    return { label: 'LIFETIME', Icon: Crown, className: 'bg-amber-500/15 text-amber-400 border-amber-500/30' }
+  }
+  if (sub.isTrial) {
+    return { label: 'TRIAL', Icon: Zap, className: 'bg-purple-500/15 text-purple-300 border-purple-500/30' }
+  }
+
+  const plan = (sub.plan || sub.planName || '').toLowerCase()
+  if (plan.includes('pro')) {
+    return { label: 'PRO', Icon: Crown, className: 'bg-yellow-500/15 text-yellow-400 border-yellow-500/30' }
+  }
+  if (plan.includes('plus')) {
+    return { label: 'PLUS', Icon: Zap, className: 'bg-blue-500/15 text-blue-400 border-blue-500/30' }
+  }
+  // Unknown plan: fall back to planName (truncated)
+  return {
+    label: (sub.planName || 'MEMBER').toUpperCase().slice(0, 8),
+    Icon: null,
+    className: 'bg-white/10 text-white/70 border-white/15',
+  }
+}
+
+// === "Last updated: 2:35 PM" formatter ===
+function formatLastSeen(iso?: string | null): string | null {
+  if (!iso) return null
+  try {
+    const d = new Date(iso)
+    if (isNaN(d.getTime())) return null
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
+  } catch {
+    return null
+  }
+}
 
 export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => void }) {
   const { navigate } = useRouter()
@@ -89,6 +143,27 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
   const trialMsLeft = Math.max(0, me.trial.endsAt ? new Date(me.trial.endsAt).getTime() - now : 0)
   const trialDaysLeft = Math.max(0, Math.ceil(trialMsLeft / (24 * 60 * 60 * 1000)))
 
+  // === Derived render values for the new features ===
+  const subBadge = getSubscriptionBadge(me.subscription)
+  const subActive = !!me.subscription?.active
+  const isTrial = subActive && !!me.subscription?.isTrial
+  // Prefer subscription.daysLeft when present (already computed server-side); fall back to live ticker
+  const subDaysLeft = me.subscription?.daysLeft ?? trialDaysLeft
+  const trialPct = Math.min(100, Math.max(0, (subDaysLeft / TRIAL_TOTAL_DAYS) * 100))
+  const trialTone = subDaysLeft > 7 ? 'green' : subDaysLeft >= 3 ? 'yellow' : 'red'
+  const trialBarColor =
+    trialTone === 'green' ? 'bg-emerald-500'
+      : trialTone === 'yellow' ? 'bg-amber-500'
+        : 'bg-rose-500'
+  const trialTextColor =
+    trialTone === 'green' ? 'text-emerald-400'
+      : trialTone === 'yellow' ? 'text-amber-400'
+        : 'text-rose-400'
+
+  const isRpcLive = !!me.session?.rpcEnabled
+  const gatewayReady = !!me.session?.gatewayReady
+  const lastSeen = formatLastSeen(me.session?.lastPresenceUpdate)
+
   const handleStatusSelect = (status: string) => {
     setStatusDropdown(false)
     setUserStatus(status)
@@ -111,6 +186,23 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
       console.error(e)
       setStatusEnabled(!v)
       toast.error('Failed to toggle status')
+    }
+  }
+
+  const handleQuickPreset = async (preset: (typeof QUICK_PRESETS)[number]) => {
+    // Optimistic local update so the pill reflects the new status immediately
+    setCustomMsg(preset.label)
+    setCustomEmoji(preset.emoji)
+    try {
+      await api.statusUpdate({
+        customStatus: preset.label,
+        customStatusEmoji: preset.emoji,
+      })
+      toast.success(`Status set: ${preset.emoji} ${preset.label}`, { duration: 2000 })
+      onRefresh()
+    } catch (e) {
+      console.error(e)
+      toast.error('Failed to set quick status')
     }
   }
 
@@ -209,8 +301,22 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
           </>
         )}
 
-        {/* Top-Right Small Avatar + Dropdown Menu */}
-        <div className="relative flex items-center justify-end z-20">
+        {/* Top-Right: RPC LIVE Indicator + Small Avatar + Dropdown Menu */}
+        <div className="relative flex items-center justify-end gap-2 z-20">
+          {/* RPC LIVE Indicator (pulsing green dot + "LIVE") */}
+          {isRpcLive && (
+            <div
+              className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 backdrop-blur-sm"
+              title="RPC is currently broadcasting to Discord"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span className="text-[10px] font-bold tracking-widest text-emerald-400">LIVE</span>
+            </div>
+          )}
+
           <div className="relative" ref={userMenuRef}>
             <button
               type="button"
@@ -368,14 +474,73 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
           />
         </div>
 
-        {/* Centered Username & Status (OFFLINE / ONLINE) */}
+        {/* Quick Status Presets — instantly set common statuses */}
+        <div className="relative z-10 w-full max-w-sm mx-auto mt-3 grid grid-cols-4 gap-2">
+          {QUICK_PRESETS.map(preset => {
+            const isActive = customMsg === preset.label && customEmoji === preset.emoji
+            return (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => handleQuickPreset(preset)}
+                className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl border transition-all active:scale-95 ${
+                  isActive
+                    ? 'bg-purple-500/15 border-purple-500/40'
+                    : 'bg-[#181922] border-white/8 hover:bg-white/10 hover:border-purple-500/30'
+                }`}
+                title={`Set status: ${preset.emoji} ${preset.label}`}
+                aria-label={`Quick status: ${preset.label}`}
+              >
+                <span className="text-lg leading-none">{preset.emoji}</span>
+                <span className="text-[10px] font-medium text-white/70 truncate w-full text-center">
+                  {preset.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Centered Username + Subscription Badge + Status (OFFLINE / ONLINE) + Trial Countdown */}
         <div className="relative z-10 text-center mt-5 mb-6 space-y-1">
-          <h2 className="text-xl sm:text-2xl font-bold text-white tracking-wide">
-            {me.user.username}
-          </h2>
+          <div className="flex items-center justify-center gap-2 flex-wrap">
+            <h2 className="text-xl sm:text-2xl font-bold text-white tracking-wide">
+              {me.user.username}
+            </h2>
+            {subBadge && (
+              <Badge className={`border ${subBadge.className}`}>
+                {subBadge.Icon && <subBadge.Icon className="w-3 h-3" />}
+                <span>{subBadge.label}</span>
+              </Badge>
+            )}
+          </div>
           <p className="text-xs sm:text-sm font-semibold tracking-widest text-white/50 uppercase">
             {statusEnabled ? (userStatus.toUpperCase() || 'ONLINE') : 'OFFLINE'}
           </p>
+
+          {/* Trial Countdown — thin progress bar */}
+          {isTrial && (
+            <div className="mt-2 mx-auto max-w-[220px]">
+              <div className="flex items-center justify-between text-[10px] font-medium mb-1">
+                <span className="text-white/50 uppercase tracking-wider">Trial</span>
+                <span className={`font-semibold ${trialTextColor}`}>
+                  {subDaysLeft} day{subDaysLeft === 1 ? '' : 's'} left
+                </span>
+              </div>
+              <div
+                className="h-1.5 bg-white/10 rounded-full overflow-hidden"
+                role="progressbar"
+                aria-valuemin={0}
+                aria-valuemax={TRIAL_TOTAL_DAYS}
+                aria-valuenow={subDaysLeft}
+                aria-label="Trial days remaining"
+              >
+                <div
+                  className={`h-full ${trialBarColor} rounded-full transition-all duration-500 ease-out`}
+                  style={{ width: `${trialPct}%` }}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         {/* ENABLE STATUS Toggle Row */}
@@ -454,6 +619,33 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
           >
             {saving ? '...' : 'UPDATE'}
           </button>
+        </div>
+
+        {/* Connection Status + Last Seen — tiny footer line at the bottom of the card */}
+        <div className="relative z-10 mt-4 pt-3 border-t border-white/5 flex flex-col items-center gap-1">
+          <div
+            className={`flex items-center gap-1.5 text-[11px] font-medium ${
+              gatewayReady ? 'text-emerald-400' : 'text-red-400'
+            }`}
+            title={gatewayReady ? 'Discord Gateway websocket is connected' : 'Discord Gateway websocket is not connected'}
+          >
+            {gatewayReady ? (
+              <>
+                <Wifi className="w-3 h-3" />
+                <span>Connected to Discord Gateway</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-3 h-3" />
+                <span>Disconnected</span>
+              </>
+            )}
+          </div>
+          {lastSeen && (
+            <div className="text-[10px] text-white/40">
+              Last updated: {lastSeen}
+            </div>
+          )}
         </div>
       </div>
 

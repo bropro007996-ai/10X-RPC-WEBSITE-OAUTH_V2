@@ -355,6 +355,19 @@ export const api = {
     body: JSON.stringify({ userId, action, ...data }),
   }),
 
+  adminStats: () => fetchJson<{
+    ok: boolean
+    stats: {
+      totalUsers: number
+      activeSubscriptions: number
+      totalRevenue: number
+      trialUsers: number
+      expiredSubs: number
+      planBreakdown: Record<string, number>
+      plans: Array<{ id: string; name: string; price: number }>
+    }
+  }>('/api/admin/stats'),
+
   placeholders: () => fetchJson<{ placeholders: PlaceholderEntry[] }>('/api/placeholders'),
   resolvePlaceholders: (text: string) => fetchJson<{ original: string; resolved: string }>(
     '/api/placeholders', { method: 'POST', body: JSON.stringify({ text }) }

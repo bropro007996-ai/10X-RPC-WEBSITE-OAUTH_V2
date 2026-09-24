@@ -24,9 +24,10 @@ export async function POST(req: Request) {
 
   const body = await req.json() as {
     userId?: string
-    action?: 'sync' | 'stop-rpc' | 'extend-trial' | 'delete-user' | 'toggle-status' | 'toggle-games-rpc'
+    action?: 'sync' | 'stop-rpc' | 'extend-trial' | 'delete-user' | 'toggle-status' | 'toggle-games-rpc' | 'apply-template'
     days?: number
     enable?: boolean
+    template?: { name: string; state: string; details: string; type: string }
   }
 
   const { userId, action } = body
@@ -125,6 +126,28 @@ export async function POST(req: Request) {
         // Cascade delete — removes sessions, rpcConfigs, trials, etc.
         await db.user.delete({ where: { id: userId } })
         return NextResponse.json({ ok: true, message: 'User deleted' })
+      }
+
+      case 'apply-template': {
+        const tpl = body.template
+        if (!tpl?.name) {
+          return NextResponse.json({ error: 'missing template' }, { status: 400 })
+        }
+        const existing = await db.rpcConfig.findFirst({ where: { userId } })
+        const tplData = {
+          name: tpl.name,
+          type: tpl.type || 'PLAYING',
+          state: tpl.state || null,
+          details: tpl.details || null,
+        }
+        if (existing) {
+          await db.rpcConfig.update({ where: { id: existing.id }, data: tplData })
+        } else {
+          await db.rpcConfig.create({ data: { userId, ...tplData } })
+        }
+        // Sync daemon to push the new config
+        await daemonSyncUser(userId)
+        return NextResponse.json({ ok: true, message: `Template "${tpl.name}" applied` })
       }
 
       default:

@@ -1016,3 +1016,42 @@ Verification:
 - /api/me shows Pro: subscription=Pro (3 Months), daysLeft=90 ✅
 
 Deployed: Vercel (10x-rpc.vercel.app)
+
+---
+Task ID: 30
+Agent: main (Z.ai Code)
+Task: Upgrade profile + admin panel + add new features.
+
+ProfileSection Upgrades (6 new features):
+1. Subscription Badge — PRO/PLUS/TRIAL/LIFETIME/EXPIRED badge next to username with Crown/Zap icon
+2. Trial Countdown — thin progress bar (green/yellow/red based on days left)
+3. Quick Status Presets — 4 emoji buttons (🎮 Playing, 💻 Coding, 🎵 Music, 😴 AFK) that instantly set custom status
+4. RPC Live Indicator — pulsing green dot + "LIVE" in top-right when RPC is enabled
+5. Connection Status — "🟢 Connected to Discord Gateway" / "🔴 Disconnected" at card bottom
+6. Last Seen — "Last updated: 2:35 PM" timestamp
+
+AdminPage Upgrades (7 new features):
+1. Revenue Stats — 4 stat cards: Total Users, Active RPC, Revenue ($), Subscriptions count
+2. Plan Distribution — horizontal bar chart showing user count per plan (Trial/Plus/Pro/Lifetime)
+3. RPC Templates — 6 pre-made templates (Gaming, VS Code, Spotify, Twitch, AFK, Custom) with "Apply" button
+4. Search/Filter — search by username + 5 filter buttons (All/Active RPC/Verified/Trial/Expired)
+5. Daemon Health Indicator — colored health bar (green=healthy, yellow=degraded, red=down)
+6. Auto-refresh Toggle — switch to enable/disable 30s auto-refresh
+7. apply-template admin action — new API action that updates rpcConfig + syncs daemon
+
+New API Routes:
+- GET /api/admin/stats — returns totalUsers, activeSubscriptions, totalRevenue, planBreakdown
+- POST /api/admin/user-action with action='apply-template' — applies RPC template to user
+
+Verification:
+- Admin stats: totalUsers=4, revenue=$4, planBreakdown={pro:1, trial:4} ✅
+- Admin users: 200 ✅
+- Daemon status: 200 ✅
+- Subscription status: 200 ✅
+- /api/me shows Pro (3 Months), 90 days ✅
+- apply-template: "Gaming" applied successfully ✅
+- Dashboard: subscription panel + "Extend / Upgrade" button visible ✅
+- Admin: Plan Distribution + Daemon Status + RPC Templates + Search all visible ✅
+- Zero browser errors ✅
+
+Deployed: Vercel (10x-rpc.vercel.app)
