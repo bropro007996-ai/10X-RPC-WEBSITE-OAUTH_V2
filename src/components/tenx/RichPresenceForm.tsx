@@ -440,12 +440,6 @@ export function RichPresenceForm({
             />
           </FormField>
 
-          {/* Button visibility note */}
-          <div className="col-span-full -mt-1 mb-1 flex items-center gap-2 text-xs text-white/50 bg-purple-500/10 border border-purple-500/20 rounded-xl px-3.5 py-2.5">
-            <span>ℹ️</span>
-            <span><strong>Discord Button Visibility:</strong> Buttons are displayed on your profile when <em>other users/friends</em> view your profile. Discord client intentionally hides buttons when you view your own profile.</span>
-          </div>
-
           {/* 14. PARTY SIZE */}
           <FormField label="PARTY SIZE">
             <input
