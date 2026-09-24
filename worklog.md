@@ -1231,3 +1231,47 @@ Remaining from master prompt (next tasks):
 - Connected accounts management
 - Workspace reset
 - Discord notifications
+
+---
+Task ID: 35
+Agent: main (Z.ai Code)
+Task: Build premium admin panel — full API layer + UI shell.
+
+Admin API Routes (14 total, all deployed + tested):
+1. GET /api/admin/users — list all users with RPC state ✅ 200
+2. GET /api/admin/stats — aggregate stats (users, revenue, plan breakdown) ✅ 200
+3. GET /api/admin/daemon-status — daemon internal state ✅ 200
+4. GET /api/admin/payments — list payments with filters (status, search) ✅ 200
+5. GET /api/admin/subscriptions — list subscriptions with filters ✅ 200
+6. GET /api/admin/audit-logs — list audit logs with filters ✅ 200
+7. GET/POST /api/admin/announcements — list + create announcements ✅ 200
+8. PUT/DELETE /api/admin/announcements/[id] — update + delete ✅
+9. GET/PUT /api/admin/settings — site settings (singleton) ✅ 200
+10. GET /api/admin/health — system health (database, razorpay, daemon) ✅ 200
+11. POST /api/admin/grant-access — manually grant subscription ✅ 400 (validation)
+12. POST /api/admin/send-notification — send notifications to users ✅ 400 (validation)
+13. POST /api/admin/user-action — per-user actions (sync, stop, extend, template) ✅ 200
+14. POST /api/admin/force-rpc — bulk RPC enable/disable ✅
+
+Admin API Client Methods (added 15+ methods):
+- adminPayments, adminSubscriptions, adminAuditLogs, adminHealth
+- adminAnnouncements, adminCreateAnnouncement, adminDeleteAnnouncement
+- adminSettings, adminUpdateSettings
+- adminGrantAccess, adminSendNotification
+- adminPlans, adminCreatePlan, adminUpdatePlan, adminDeletePlan
+
+System Health Response:
+- database: ok=true, "reachable (4 users)", latencyMs=17 ✅
+- razorpay: ok=true, "configured (key_id: rzp_live...)" ✅
+- daemon: ok=true, "reachable", latencyMs=79 ✅
+- overall: ok=true, "all systems operational" ✅
+
+Subscription Response:
+- 1 active subscription (Pro plan, 90 days left, ends 2026-12-23) ✅
+
+Site Settings:
+- siteName: "10X RPC" ✅
+- heroTitle: "Configure Once. Power Your Custom Presence." ✅
+- maintenanceMode: false ✅
+
+All endpoints server-side authorized (isAdmin check). Lint clean. Deployed to Vercel.

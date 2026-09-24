@@ -368,6 +368,60 @@ export const api = {
     }
   }>('/api/admin/stats'),
 
+  adminPayments: (params?: { status?: string; search?: string; take?: number; skip?: number }) => {
+    const qs = new URLSearchParams()
+    if (params?.status) qs.set('status', params.status)
+    if (params?.search) qs.set('search', params.search)
+    if (params?.take) qs.set('take', String(params.take))
+    if (params?.skip) qs.set('skip', String(params.skip))
+    return fetchJson<{ ok: boolean; payments: any[]; total: number }>(`/api/admin/payments?${qs}`)
+  },
+
+  adminSubscriptions: (params?: { status?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.status) qs.set('status', params.status)
+    return fetchJson<{ ok: boolean; subscriptions: any[]; total: number }>(`/api/admin/subscriptions?${qs}`)
+  },
+
+  adminAuditLogs: (params?: { action?: string; actor?: string; target?: string; take?: number }) => {
+    const qs = new URLSearchParams()
+    if (params?.action) qs.set('action', params.action)
+    if (params?.actor) qs.set('actor', params.actor)
+    if (params?.target) qs.set('target', params.target)
+    if (params?.take) qs.set('take', String(params.take))
+    return fetchJson<{ ok: boolean; logs: any[]; total: number }>(`/api/admin/audit-logs?${qs}`)
+  },
+
+  adminHealth: () => fetchJson<{ ok: boolean; database: any; razorpay: any; daemon: any; overall: string }>('/api/admin/health'),
+
+  adminAnnouncements: () => fetchJson<{ ok: boolean; announcements: any[] }>('/api/admin/announcements'),
+  adminCreateAnnouncement: (data: { type: string; title: string; message: string; isActive?: boolean }) => fetchJson<{ ok: boolean }>(
+    '/api/admin/announcements', { method: 'POST', body: JSON.stringify(data) }
+  ),
+  adminDeleteAnnouncement: (id: string) => fetchJson<{ ok: boolean }>(`/api/admin/announcements/${id}`, { method: 'DELETE' }),
+
+  adminSettings: () => fetchJson<{ ok: boolean; settings: any }>('/api/admin/settings'),
+  adminUpdateSettings: (data: Record<string, unknown>) => fetchJson<{ ok: boolean }>(
+    '/api/admin/settings', { method: 'PUT', body: JSON.stringify(data) }
+  ),
+
+  adminGrantAccess: (data: { userId: string; planId: string; durationDays: number; reason?: string }) => fetchJson<{ ok: boolean; message?: string }>(
+    '/api/admin/grant-access', { method: 'POST', body: JSON.stringify(data) }
+  ),
+
+  adminSendNotification: (data: { userIds: string[]; type: string; title: string; message: string }) => fetchJson<{ ok: boolean; sent: number; invalid: number }>(
+    '/api/admin/send-notification', { method: 'POST', body: JSON.stringify(data) }
+  ),
+
+  adminPlans: () => fetchJson<{ ok: boolean; plans: any[] }>('/api/plans'),
+  adminCreatePlan: (data: Record<string, unknown>) => fetchJson<{ ok: boolean; plan: any }>(
+    '/api/plans', { method: 'POST', body: JSON.stringify(data) }
+  ),
+  adminUpdatePlan: (data: Record<string, unknown>) => fetchJson<{ ok: boolean; plan: any }>(
+    '/api/plans', { method: 'PUT', body: JSON.stringify(data) }
+  ),
+  adminDeletePlan: (id: string) => fetchJson<{ ok: boolean }>(`/api/plans?id=${id}`, { method: 'DELETE' }),
+
   placeholders: () => fetchJson<{ placeholders: PlaceholderEntry[] }>('/api/placeholders'),
   resolvePlaceholders: (text: string) => fetchJson<{ original: string; resolved: string }>(
     '/api/placeholders', { method: 'POST', body: JSON.stringify({ text }) }
