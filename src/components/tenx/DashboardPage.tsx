@@ -7,8 +7,6 @@ import { ProfileSection } from './ProfileSection'
 import { RichPresenceForm } from './RichPresenceForm'
 import { GamesRpcForm } from './GamesRpcForm'
 import { SubscriptionPanel } from './SubscriptionPanel'
-import { ActivityFeed } from './ActivityFeed'
-import { PaymentHistory } from './PaymentHistory'
 import { QuickStats } from './QuickStats'
 import { NavMenu } from './NavMenu'
 
@@ -184,12 +182,6 @@ export function DashboardPage() {
           onSaved={() => refresh()}
           onToggle={() => refresh()}
         />
-
-        {/* Activity Feed + Notifications */}
-        <ActivityFeed />
-
-        {/* Payment History */}
-        <PaymentHistory />
 
         {/* Footer */}
         <p className="text-xs text-white/30 text-center pt-4">
