@@ -1275,3 +1275,58 @@ Site Settings:
 - maintenanceMode: false ✅
 
 All endpoints server-side authorized (isAdmin check). Lint clean. Deployed to Vercel.
+
+---
+Task ID: 36
+Agent: main (Z.ai Code)
+Task: Add new features + test + deploy.
+
+New Features Added (3 components + 1 API route):
+
+1. QuickStats component — 4 animated stat cards at top of dashboard:
+   - RPC Status (LIVE/OFF with green/gray indicator)
+   - Gateway (Connected/Disconnected with green/red)
+   - Plan name (Pro/Trial/etc with amber)
+   - Days Left (with color: green>7d, yellow 3-7d, red <3d, ∞ for lifetime)
+
+2. ActivityFeed component — tabbed Activity + Notifications panel:
+   - Activity tab: shows recent audit log entries (actions performed on user's account)
+   - Notifications tab: shows user notifications with unread badge count
+   - Mark all read button
+   - Clear individual notification (hover → ✕)
+   - Auto-refreshes every 30s
+   - Empty states with icons
+
+3. PaymentHistory component — shows user's payment history:
+   - Each payment: plan name, status badge, order ID, date, amount (₹)
+   - Status icons: green check (captured), red X (failed), yellow clock (pending)
+   - Empty state with icon
+   - Refresh button
+
+4. /api/activity-log API route:
+   - Returns recent audit logs for the user
+   - Returns recent notifications
+   - Returns current RPC/status/gateway state
+
+Dashboard Layout (top to bottom):
+1. QuickStats (4 cards)
+2. ProfileSection (avatar, status, subscription badge, connection status)
+3. SmartSleepTimer
+4. SubscriptionPanel (current plan + upgrade)
+5. RichPresenceForm (Normal RPC with buttons)
+6. GamesRpcForm (Games RPC with game selector)
+7. ActivityFeed (activity log + notifications)
+8. PaymentHistory
+
+Verification:
+- Lint: clean ✅
+- /api/activity-log: 200 (ok=true, activity=0, notifications=0, rpc=true, gateway=true) ✅
+- /api/payments/list: 200 ✅
+- /api/notifications: 200 ✅
+- Browser: zero errors ✅
+- QuickStats: visible (RPC Status, Gateway, Plan, Days Left) ✅
+- ActivityFeed: visible (Activity + Notifications tabs) ✅
+- PaymentHistory: visible (heading "Payment History") ✅
+- All existing features still working (Profile, Status, RPC, Games RPC, Subscription) ✅
+
+Deployed: Vercel (10x-rpc.vercel.app)
