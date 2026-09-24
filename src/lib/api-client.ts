@@ -318,6 +318,33 @@ export const api = {
     results: Array<{ userId: string; username: string; ok: boolean; message: string }>
   }>('/api/admin/force-rpc', { method: 'POST', body: JSON.stringify({ enable }) }),
 
+  adminDaemonStatus: () => fetchJson<{
+    ok: boolean
+    daemon?: {
+      running: boolean
+      uptimeSeconds?: number
+      activeConnections?: number
+      totalTrackedUsers?: number
+      users?: Array<{
+        userId: string
+        connected: boolean
+        platform: string
+        lastStatus: string
+        lastConnectedAt?: string
+      }>
+    }
+    error?: string
+  }>('/api/admin/daemon-status'),
+
+  adminUserAction: (userId: string, action: string, data?: Record<string, unknown>) => fetchJson<{
+    ok: boolean
+    message?: string
+    error?: string
+  }>('/api/admin/user-action', {
+    method: 'POST',
+    body: JSON.stringify({ userId, action, ...data }),
+  }),
+
   placeholders: () => fetchJson<{ placeholders: PlaceholderEntry[] }>('/api/placeholders'),
   resolvePlaceholders: (text: string) => fetchJson<{ original: string; resolved: string }>(
     '/api/placeholders', { method: 'POST', body: JSON.stringify({ text }) }

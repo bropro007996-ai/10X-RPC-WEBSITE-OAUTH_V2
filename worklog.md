@@ -937,3 +937,41 @@ Gateway Echo Test (definitive proof buttons work):
 - Discord echoes back the buttons array — buttons are accepted and will render!
 
 Conclusion: ALL bugs fixed, ALL features working, zero errors.
+
+---
+Task ID: 28
+Agent: main (Z.ai Code)
+Task: Add comprehensive Admin Panel with daemon status, per-user actions, trial management.
+
+New API Routes:
+- /api/admin/daemon-status (GET): fetches the 24/7 daemon's internal state from Render — running, uptime, activeConnections, tracked users with connected/platform/lastStatus.
+- /api/admin/user-action (POST): per-user admin actions:
+  * sync: force-sync user's presence via daemon-bridge
+  * stop-rpc: disable RPC + clear presence for a specific user
+  * toggle-status: enable/disable Status for a specific user
+  * toggle-games-rpc: enable/disable Games RPC for a specific user
+  * extend-trial: add days to a user's trial
+  * delete-user: cascade delete a user and all their data
+
+New Admin Panel Features (AdminPage.tsx rebuilt):
+- 4 stat cards: Total Users, Active RPC, Verified (with token), Daemon Connections
+- Daemon Status card: running/stopped badge, uptime, connections, tracked users, per-user connection details
+- Bulk Actions: Force Enable All, Keep-Alive, Disable All (existing, preserved)
+- User List with expandable rows:
+  * Avatar, username, discord ID, admin badge, RPC LIVE/OFF badge, verified/no-token badge
+  * Trial days left, custom status, user status, RPC config name, last presence update time
+  * Per-user action buttons: Sync, Stop RPC, Enable/Disable Status, +30d Trial, Delete
+  * User details grid: ID, created date, city, timezone, gateway ready, VR active, sleep timer
+
+Admin Access:
+- Added bropr0.h4ck's Discord ID (1526539220586467351) to CONFIG.admin.discordIds
+- Both 824940038617694279 (original admin) and 1526539220586467351 (bropr0.h4ck) now have admin access
+
+Verification:
+- GET /api/admin/users -> 200, returns 3 users with full state ✅
+- GET /api/admin/daemon-status -> 200, shows daemon running=True, 1 connection ✅
+- POST /api/admin/user-action (sync) -> ok=True ✅
+- POST /api/admin/user-action (extend-trial) -> ok=True, "Trial extended by 7 days" ✅
+- Admin panel accessible at #/admin for admin users
+
+Deployed: Vercel (10x-rpc.vercel.app)
