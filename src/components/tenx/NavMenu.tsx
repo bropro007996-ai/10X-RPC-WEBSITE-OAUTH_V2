@@ -36,10 +36,10 @@ export function NavMenu({ isAdmin, onLogout }: NavMenuProps) {
     {
       title: 'Account',
       items: [
-        { label: 'Subscription', icon: Crown, href: '#/dashboard' },
-        { label: 'Payment History', icon: Receipt, href: '#/dashboard' },
-        { label: 'Activity Log', icon: Activity, href: '#/dashboard' },
-        { label: 'Notifications', icon: Bell, href: '#/dashboard' },
+        { label: 'Subscription', icon: Crown, href: '/dashboard' },
+        { label: 'Payment History', icon: Receipt, href: '/dashboard' },
+        { label: 'Activity Log', icon: Activity, href: '/dashboard' },
+        { label: 'Notifications', icon: Bell, href: '/dashboard' },
       ],
     },
     {

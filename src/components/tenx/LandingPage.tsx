@@ -12,15 +12,14 @@ export function LandingPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for OAuth error in URL hash (e.g. #/?error=invalid_scope)
+    // Check for OAuth error in URL query params (e.g. ?error=invalid_scope)
     if (typeof window !== 'undefined') {
-      const hash = window.location.hash
-      const errorMatch = hash.match(/[?&]error=([^&]+)/)
-      if (errorMatch) {
-        const errMsg = decodeURIComponent(errorMatch[1])
-        toast.error(`OAuth error: ${errMsg}`, { duration: 6000 })
+      const params = new URLSearchParams(window.location.search)
+      const errorParam = params.get('error')
+      if (errorParam) {
+        toast.error(`OAuth error: ${decodeURIComponent(errorParam)}`, { duration: 6000 })
         // Clear the error from URL
-        window.location.hash = ''
+        window.history.replaceState({}, '', '/')
       }
     }
     api.me().then(m => { setMe(m); setLoading(false) }).catch(() => setLoading(false))
