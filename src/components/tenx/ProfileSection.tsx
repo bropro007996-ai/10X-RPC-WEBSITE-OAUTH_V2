@@ -295,13 +295,13 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
           <div className="relative" ref={userMenuRef}>
             <button
               type="button"
-              onClick={() => setUserMenuOpen(v => !v)}
+              onClick={() => navigate({ name: 'profile' })}
               className="relative rounded-full focus:outline-none ring-1 ring-white/20 hover:ring-purple-400/60 transition-all cursor-pointer"
-              title="Account options"
+              aria-label="View Profile"
             >
               <img
                 src={me.user.avatar}
-                alt=""
+                alt={me.user.username}
                 className="w-8 h-8 rounded-full object-cover"
               />
             </button>
@@ -358,14 +358,19 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
         {/* Center: Large Circular Avatar + Status Dot + "click here" */}
         <div className="relative flex flex-col items-center justify-center -mt-3 mb-5 z-20">
           <div className="relative inline-block" ref={statusDropdownRef}>
-            {/* Avatar */}
-            <div className="w-28 h-28 rounded-full overflow-hidden border-2 border-white/10 shadow-2xl ring-1 ring-white/5">
+            {/* Avatar — click to open profile page */}
+            <button
+              type="button"
+              onClick={() => navigate({ name: 'profile' })}
+              className="block w-28 h-28 rounded-full overflow-hidden border-2 border-white/10 shadow-2xl ring-1 ring-white/5 cursor-pointer hover:ring-purple-400/60 transition-all"
+              title="View Profile"
+            >
               <img
                 src={me.user.avatar}
                 alt={me.user.username}
                 className="w-full h-full object-cover"
               />
-            </div>
+            </button>
 
             {/* Status Dot at bottom-right of avatar */}
             <button
