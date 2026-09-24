@@ -25,6 +25,9 @@ model User {
   rotatorPresets  RotatorPreset[]
   globalConfig    GlobalConfig?
   trial           Trial?
+  payments        Payment[]
+  subscriptions   Subscription[]
+  notifications   Notification[]
 }
 
 model Session {
@@ -172,4 +175,121 @@ model OAuthState {
   expiresAt DateTime
 
   @@index([state])
+}
+
+// ===== Admin-only models (added to support the admin panel) =====
+
+model SiteSettings {
+  id              String   @id
+  siteName        String   @default("10X RPC")
+  heroTitle       String   @default("Take control of your Discord presence")
+  heroSubtitle    String   @default("10X RPC puts you in charge of your status, activity, and presence — 24/7.")
+  discordInvite   String   @default("https://discord.gg/jr27qeCZU")
+  supportText     String?
+  maintenanceMode Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  type      String   @default("info") // info | update | warning | maintenance
+  title     String
+  message   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  target    String?
+  actor     String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([action])
+  @@index([actor])
+  @@index([createdAt])
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  userId            String
+  planId            String
+  planName          String
+  amount            Int
+  currency          String   @default("inr")
+  status            String   @default("created") // created | verified | failed | captured
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  internalOrderId   String?
+  verifiedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  plan       String
+  status     String   @default("active") // active | expired | cancelled | suspended | pending
+  paymentId  String?
+  amountPaid  Int      @default(0)
+  currency   String   @default("inr")
+  startsAt   DateTime @default(now())
+  endsAt     DateTime
+  autoRenew  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([endsAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   @default("info") // info | success | warning | error
+  title     String
+  message   String
+  metadata  String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([readAt])
+  @@index([createdAt])
+}
+
+model Plan {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  priceInr     Int
+  durationDays Int
+  description  String?
+  features     String   @default("[]") // JSON array of strings
+  isActive     Boolean  @default(true)
+  isPopular    Boolean  @default(false)
+  badge        String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([displayOrder])
 }

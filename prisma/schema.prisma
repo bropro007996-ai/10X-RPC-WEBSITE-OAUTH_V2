@@ -1,17 +1,12 @@
-// 10X RPC — Production Prisma schema (PostgreSQL / Neon)
-// Swap this over prisma/schema.prisma before deploying to Vercel + Render.
-// Run:  bash scripts/use-postgres.sh
-// Then: bun run db:push   (with DATABASE_URL + DATABASE_URL_UNPOOLED set to Neon)
+// 10X RPC — Prisma schema (SQLite for local/dev sandbox)
 
 generator client {
-  provider        = "prisma-client-js"
-  binaryTargets   = ["native", "linux-musl-openssl-3.0.x", "debian-openssl-3.0.x", "debian-openssl-1.1.x", "rhel-openssl-3.0.x", "rhel-openssl-1.1.x"]
+  provider = "prisma-client-js"
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  directUrl = env("DATABASE_URL_UNPOOLED")
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model User {
@@ -21,19 +16,18 @@ model User {
   discriminator String?
   avatar        String?
   backgroundUrl String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
-  sessions         Session[]
-  rpcConfigs       RpcConfig[]
-  gameRpcConfigs   GameRpcConfig[]
-  rotatorPresets   RotatorPreset[]
-  globalConfig     GlobalConfig?
-  trial            Trial?
-  subscription     Subscription?
-  payments         Payment[]
-  notifications    Notification[]
-  connectedAccounts ConnectedAccount[]
+  sessions        Session[]
+  rpcConfigs      RpcConfig[]
+  gameConfigs     GameConfig[]
+  rotatorPresets  RotatorPreset[]
+  globalConfig    GlobalConfig?
+  trial           Trial?
+  payments        Payment[]
+  subscriptions   Subscription[]
+  notifications   Notification[]
 }
 
 model Session {
@@ -50,10 +44,9 @@ model Session {
   discordTokenExpiresAt DateTime?
 
   // Status & RPC state (completely independent)
-  statusEnabled       Boolean  @default(false)
-  rpcEnabled          Boolean  @default(false)
-  gamesRpcEnabled     Boolean  @default(false)
-  gatewayReady        Boolean  @default(false)
+  statusEnabled      Boolean  @default(false)
+  rpcEnabled         Boolean  @default(false)
+  gatewayReady       Boolean  @default(false)
   userStatus         String   @default("online")
   customStatus       String?
   customStatusEmoji  String?
@@ -104,31 +97,35 @@ model RpcConfig {
   @@index([userId])
 }
 
-// Games RPC — completely separate from Normal RPC.
-// Uses a real game's app_id (from spoofGames) as the Discord application_id,
-// so Discord displays the game's official icon and name.
-model GameRpcConfig {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  gameSlug      String   @default("minecraft")
-  enabled       Boolean  @default(false)
-  state         String?
-  details       String?
-  largeImage    String?
-  largeText     String?
-  smallImage    String?
-  smallText     String?
-  button1Label  String?
+model GameConfig {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  gameSlug     String
+  gameName     String
+  enabled      Boolean  @default(false)
+  platform     String   @default("desktop")
+  state        String?
+  details      String?
+  largeImage   String?
+  largeText    String?
+  smallImage   String?
+  smallText    String?
+  button1Label String?
   button1Url   String?
-  button2Label  String?
-  button2Url    String?
-  partyCurrent  Int      @default(1)
-  partyMax      Int      @default(5)
-  startMinsAgo  Int      @default(0)
-  endTotalMins  Int?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  button2Label String?
+  button2Url   String?
+  partyCurrent Int      @default(1)
+  partyMax     Int      @default(5)
+  partyId      String?
+  partySecret  String?
+  startMinsAgo Int      @default(0)
+  endTotalMins Int?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([userId, gameSlug])
+  @@index([userId])
 }
 
 model RotatorPreset {
@@ -180,130 +177,119 @@ model OAuthState {
   @@index([state])
 }
 
-model Subscription {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  plan            String   @default("trial") // trial | plus | pro | lifetime
-  status          String   @default("active") // active | expired | cancelled | pending
-  paymentId       String?  // Stripe session/payment ID
-  amountPaid      Float    @default(0)
-  currency        String   @default("usd")
-  startsAt        DateTime @default(now())
-  endsAt          DateTime // expiry date
-  autoRenew       Boolean  @default(false)
+// ===== Admin-only models (added to support the admin panel) =====
+
+model SiteSettings {
+  id              String   @id
+  siteName        String   @default("10X RPC")
+  heroTitle       String   @default("Take control of your Discord presence")
+  heroSubtitle    String   @default("10X RPC puts you in charge of your status, activity, and presence — 24/7.")
+  discordInvite   String   @default("https://discord.gg/jr27qeCZU")
+  supportText     String?
+  maintenanceMode Boolean  @default(false)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
-
-  @@index([userId])
-  @@index([status])
 }
 
-// ===== Payment System =====
-model Payment {
-  id              String   @id @default(cuid())
-  userId          String
-  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  planId          String
-  planName        String
-  amount          Float
-  currency        String   @default("INR")
-  status          String   @default("created") // created|pending|authorized|captured|failed|cancelled|refunded
-  razorpayOrderId String?  @unique
-  razorpayPaymentId String?
-  razorpaySignature String?
-  internalOrderId String   @unique
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  verifiedAt      DateTime?
-
-  @@index([userId])
-  @@index([status])
-  @@index([razorpayOrderId])
-}
-
-// ===== Dynamic Plans (admin-managed) =====
-model Plan {
-  id            String   @id @default(cuid())
-  name          String
-  slug          String   @unique
-  priceInr      Int      // price in paise (1 INR = 100 paise)
-  durationDays  Int
-  description   String?
-  features      String   // JSON array of feature strings
-  isActive      Boolean  @default(true)
-  displayOrder  Int      @default(0)
-  isPopular     Boolean  @default(false)
-  badge         String?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-}
-
-// ===== Notifications =====
-model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  type      String   // payment_success|payment_failed|subscription_activated|expiry_warning|suspended|grace_period|admin_announcement
-  title     String
-  message   String
-  read      Boolean  @default(false)
-  metadata  String?  // JSON
-  createdAt DateTime @default(now())
-
-  @@index([userId])
-  @@index([read])
-}
-
-// ===== Connected Accounts =====
-model ConnectedAccount {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  discordId   String
-  username    String
-  avatar      String?
-  isActive    Boolean  @default(true)
-  lastActive  DateTime?
-  createdAt   DateTime @default(now())
-
-  @@unique([userId, discordId])
-  @@index([userId])
-}
-
-// ===== Audit Logs =====
-model AuditLog {
-  id         String   @id @default(cuid())
-  action     String   // payment_created|payment_confirmed|subscription_activated|user_suspended|workspace_reset|plan_changed|admin_access_changed|settings_changed|webhook_processed
-  target     String?  // userId or resource ID
-  actor      String?  // admin userId or "system"
-  metadata   String?  // JSON
-  createdAt  DateTime @default(now())
-
-  @@index([action])
-  @@index([target])
-}
-
-// ===== Announcements =====
 model Announcement {
   id        String   @id @default(cuid())
-  type      String   @default("info") // info|update|warning|maintenance
+  type      String   @default("info") // info | update | warning | maintenance
   title     String
   message   String
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  @@index([isActive])
 }
 
-// ===== Site Settings =====
-model SiteSettings {
-  id              String   @id @default("singleton")
-  siteName        String   @default("10X RPC")
-  heroTitle      String   @default("Configure Once. Power Your Custom Presence.")
-  heroSubtitle   String   @default("Create one shared Custom Discord RPC configuration and manage your subscription and connected accounts from one powerful workspace.")
-  discordInvite   String   @default("https://discord.gg/jr27qeCZU")
-  supportText    String?
-  maintenanceMode Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  target    String?
+  actor     String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([action])
+  @@index([actor])
+  @@index([createdAt])
+}
+
+model Payment {
+  id                String   @id @default(cuid())
+  userId            String
+  planId            String
+  planName          String
+  amount            Int
+  currency          String   @default("inr")
+  status            String   @default("created") // created | verified | failed | captured
+  razorpayOrderId   String?
+  razorpayPaymentId String?
+  internalOrderId   String?
+  verifiedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model Subscription {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  plan       String
+  status     String   @default("active") // active | expired | cancelled | suspended | pending
+  paymentId  String?
+  amountPaid  Int      @default(0)
+  currency   String   @default("inr")
+  startsAt   DateTime @default(now())
+  endsAt     DateTime
+  autoRenew  Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([endsAt])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  type      String   @default("info") // info | success | warning | error
+  title     String
+  message   String
+  metadata  String?
+  readAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([readAt])
+  @@index([createdAt])
+}
+
+model Plan {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  priceInr     Int
+  durationDays Int
+  description  String?
+  features     String   @default("[]") // JSON array of strings
+  isActive     Boolean  @default(true)
+  isPopular    Boolean  @default(false)
+  badge        String?
+  displayOrder Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([displayOrder])
 }

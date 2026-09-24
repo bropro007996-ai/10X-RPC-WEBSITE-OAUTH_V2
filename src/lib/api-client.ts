@@ -159,6 +159,84 @@ export interface AdminUser {
   isAdmin: boolean
 }
 
+export interface AdminPayment {
+  id: string
+  userId: string
+  planId: string
+  planName: string
+  amount: number
+  currency: string
+  status: string
+  razorpayOrderId: string | null
+  razorpayPaymentId: string | null
+  internalOrderId: string | null
+  verifiedAt: Date | string | null
+  createdAt: string
+  updatedAt: string
+  user: {
+    id: string
+    discordId: string
+    username: string
+    avatar: string
+    discriminator: string
+  } | null
+}
+
+export interface AdminSubscription {
+  id: string
+  userId: string
+  plan: string
+  status: string
+  paymentId: string | null
+  amountPaid: number
+  currency: string
+  startsAt: string
+  endsAt: string
+  daysLeft: number
+  autoRenew: boolean
+  createdAt: string
+  updatedAt: string
+  user: {
+    id: string
+    discordId: string
+    username: string
+    avatar: string
+    discriminator: string
+    createdAt: string
+  } | null
+}
+
+export interface AdminAuditLog {
+  id: string
+  action: string
+  target: string | null
+  actor: string
+  metadata: string | null
+  createdAt: string
+}
+
+export interface AdminAnnouncement {
+  id: string
+  type: 'info' | 'update' | 'warning' | 'maintenance'
+  title: string
+  message: string
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminSettings {
+  id: string
+  siteName: string
+  heroTitle: string
+  heroSubtitle: string
+  discordInvite: string
+  supportText: string | null
+  maintenanceMode: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const isGet = !init?.method || init.method.toUpperCase() === 'GET'
   const maxAttempts = isGet ? 3 : 1
@@ -374,34 +452,48 @@ export const api = {
     if (params?.search) qs.set('search', params.search)
     if (params?.take) qs.set('take', String(params.take))
     if (params?.skip) qs.set('skip', String(params.skip))
-    return fetchJson<{ ok: boolean; payments: any[]; total: number }>(`/api/admin/payments?${qs}`)
+    return fetchJson<{ ok: boolean; payments: AdminPayment[]; total: number; take: number; skip: number }>(`/api/admin/payments?${qs}`)
   },
 
-  adminSubscriptions: (params?: { status?: string }) => {
+  adminSubscriptions: (params?: { status?: string; search?: string; take?: number; skip?: number }) => {
     const qs = new URLSearchParams()
     if (params?.status) qs.set('status', params.status)
-    return fetchJson<{ ok: boolean; subscriptions: any[]; total: number }>(`/api/admin/subscriptions?${qs}`)
+    if (params?.search) qs.set('search', params.search)
+    return fetchJson<{ ok: boolean; subscriptions: AdminSubscription[]; total: number; take: number; skip: number }>(`/api/admin/subscriptions?${qs}`)
   },
 
-  adminAuditLogs: (params?: { action?: string; actor?: string; target?: string; take?: number }) => {
+  adminAuditLogs: (params?: { action?: string; actor?: string; target?: string; take?: number; skip?: number }) => {
     const qs = new URLSearchParams()
     if (params?.action) qs.set('action', params.action)
     if (params?.actor) qs.set('actor', params.actor)
     if (params?.target) qs.set('target', params.target)
     if (params?.take) qs.set('take', String(params.take))
-    return fetchJson<{ ok: boolean; logs: any[]; total: number }>(`/api/admin/audit-logs?${qs}`)
+    if (params?.skip) qs.set('skip', String(params.skip))
+    return fetchJson<{ ok: boolean; logs: AdminAuditLog[]; total: number; take: number; skip: number }>(`/api/admin/audit-logs?${qs}`)
   },
 
-  adminHealth: () => fetchJson<{ ok: boolean; database: any; razorpay: any; daemon: any; overall: string }>('/api/admin/health'),
+  adminHealth: () => fetchJson<{
+    ok: boolean
+    health: {
+      database: { ok: boolean; message: string; latencyMs?: number }
+      razorpay: { ok: boolean; message: string }
+      daemon: { ok: boolean; message: string; latencyMs?: number }
+      overall: { ok: boolean; message: string }
+    }
+    checkedAt: string
+  }>('/api/admin/health'),
 
-  adminAnnouncements: () => fetchJson<{ ok: boolean; announcements: any[] }>('/api/admin/announcements'),
-  adminCreateAnnouncement: (data: { type: string; title: string; message: string; isActive?: boolean }) => fetchJson<{ ok: boolean }>(
+  adminAnnouncements: () => fetchJson<{ ok: boolean; announcements: AdminAnnouncement[] }>('/api/admin/announcements'),
+  adminCreateAnnouncement: (data: { type: string; title: string; message: string; isActive?: boolean }) => fetchJson<{ ok: boolean; announcement: AdminAnnouncement }>(
     '/api/admin/announcements', { method: 'POST', body: JSON.stringify(data) }
   ),
-  adminDeleteAnnouncement: (id: string) => fetchJson<{ ok: boolean }>(`/api/admin/announcements/${id}`, { method: 'DELETE' }),
+  adminUpdateAnnouncement: (id: string, data: { type?: string; title?: string; message?: string; isActive?: boolean }) => fetchJson<{ ok: boolean; announcement: AdminAnnouncement }>(
+    `/api/admin/announcements/${id}`, { method: 'PUT', body: JSON.stringify(data) }
+  ),
+  adminDeleteAnnouncement: (id: string) => fetchJson<{ ok: boolean; deleted: string }>(`/api/admin/announcements/${id}`, { method: 'DELETE' }),
 
-  adminSettings: () => fetchJson<{ ok: boolean; settings: any }>('/api/admin/settings'),
-  adminUpdateSettings: (data: Record<string, unknown>) => fetchJson<{ ok: boolean }>(
+  adminSettings: () => fetchJson<{ ok: boolean; settings: AdminSettings }>('/api/admin/settings'),
+  adminUpdateSettings: (data: Partial<Omit<AdminSettings, 'id' | 'createdAt' | 'updatedAt'>>) => fetchJson<{ ok: boolean; settings: AdminSettings }>(
     '/api/admin/settings', { method: 'PUT', body: JSON.stringify(data) }
   ),
 
