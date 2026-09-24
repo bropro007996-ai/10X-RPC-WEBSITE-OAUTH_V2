@@ -1055,3 +1055,39 @@ Verification:
 - Zero browser errors ✅
 
 Deployed: Vercel (10x-rpc.vercel.app)
+
+---
+Task ID: 31
+Agent: main (Z.ai Code)
+Task: Fix issues + add RPC Presets feature + test everything.
+
+Diagnostic Results:
+- Lint: clean ✅
+- Vercel: all endpoints 200 ✅
+- Render: uptime 35764s, daemon running, 2 active connections ✅
+- Neon: 4 active sessions ✅
+- Daemon: connected=True, platform=desktop ✅
+- /debug-payload: name=Gaming, state=In a match, platform=desktop, large_image=1552535649809203212 ✅
+
+New Feature: RPC Presets Bar
+- Created src/components/tenx/PresetBar.tsx:
+  * 5 default presets: 🎮 Gaming, 💻 Coding, 🎵 Music, 📺 Streaming, 😴 AFK
+  * Each preset loads a pre-configured RPC config (name, type, state, details, timestamps)
+  * "Save Current" button — saves the current RPC config as a custom preset (stored in localStorage)
+  * Custom presets can be deleted (hover → trash icon)
+  * Default presets cannot be deleted
+  * Presets persist across sessions (localStorage)
+- Added PresetBar to RichPresenceForm (above the form fields, below the header)
+- When a preset is clicked: loads the config into the form, shows "Preset loaded — click UPDATE to apply"
+
+Browser Verification:
+- PresetBar visible with all 5 presets + "Save Current" button ✅
+- No browser errors ✅
+- All existing features still working:
+  * ENABLE STATUS toggle (checked=true) ✅
+  * ENABLE RPC toggle (checked=true) + UPDATE + DIAGNOSE ✅
+  * ENABLE GAMES RPC toggle (checked=false) + UPDATE ✅
+  * Subscription panel with Pro (3 Months) ✅
+  * /api/me: rpc=true, status=true, gamesRpc=false, sub=Pro ✅
+
+Deployed: Vercel (10x-rpc.vercel.app)

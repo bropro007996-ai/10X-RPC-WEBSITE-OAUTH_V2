@@ -6,6 +6,7 @@ import { api, type RpcConfig } from '@/lib/api-client'
 import { PurpleSwitch } from './ui'
 import { ACTIVITY_TYPES, PLATFORMS, PLATFORM_GROUPS } from '@/lib/constants'
 import { Gamepad2, ChevronDown, Stethoscope, X } from 'lucide-react'
+import { PresetBar } from './PresetBar'
 
 interface DiagnoseCheck {
   name: string
@@ -200,10 +201,19 @@ export function RichPresenceForm({
         <div className="absolute -top-16 right-0 w-48 h-48 bg-purple-900/10 rounded-full blur-2xl pointer-events-none" />
 
         {/* Centered Card Title: 🎮 Rich Presence */}
-        <div className="relative z-10 flex items-center justify-center gap-2.5 mb-7 pt-1">
+        <div className="relative z-10 flex items-center justify-center gap-2.5 mb-5 pt-1">
           <Gamepad2 className="w-6 h-6 text-purple-400 stroke-[2.2]" />
           <h2 className="text-2xl font-bold text-white tracking-tight">Rich Presence</h2>
         </div>
+
+        {/* RPC Presets — quick load/save configurations */}
+        <PresetBar
+          currentConfig={cfg}
+          onApply={(presetConfig) => {
+            setCfg(prev => ({ ...prev, ...presetConfig }))
+            toast.success('Preset loaded — click UPDATE to apply', { duration: 2000 })
+          }}
+        />
 
         {/* Form Fields */}
         <div className="relative z-10 space-y-4">
