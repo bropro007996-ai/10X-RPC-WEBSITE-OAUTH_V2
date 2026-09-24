@@ -1367,3 +1367,55 @@ Verification:
 - All existing dashboard features still working ✅
 
 Deployed: Vercel (10x-rpc.vercel.app)
+
+---
+Task ID: 38
+Agent: main (Z.ai Code)
+Task: Expand navigation menu with more features + organized sections.
+
+Upgraded NavMenu with 4 organized sections:
+
+Main:
+- Dashboard (→ #/dashboard)
+- Profile (→ #/profile)
+
+RPC:
+- Settings (→ #/config)
+- Status Rotator (→ #/rotator)
+
+Account:
+- Subscription (→ dashboard, scroll to subscription panel)
+- Payment History (→ dashboard, scroll to payments)
+- Activity Log (→ dashboard, scroll to activity)
+- Notifications (→ dashboard, scroll to notifications)
+
+System:
+- System Status (→ /uptime)
+- Admin Panel (→ #/admin, admin only)
+
+External Links:
+- Discord Server (external link with icon)
+- 10-X Shop (external link, new)
+- Home (→ #/)
+
+Actions:
+- Logout (red, calls api.logout)
+
+UI improvements:
+- Section titles with purple uppercase labels
+- Dividers between sections
+- External link icons (↗) for external links
+- Scrollable dropdown (max-h-70vh) for long menus
+- Wider panel (w-64)
+- styled-scroll for overflow
+
+Verification:
+- Lint: clean ✅
+- Browser: zero errors ✅
+- Menu opens with ALL 14 items visible ✅
+  * Dashboard, Profile, Settings, Status Rotator
+  * Subscription, Payment History, Activity Log, Notifications
+  * System Status, Discord Server, 10-X Shop, Home, Logout
+- Section headers visible (Main, RPC, Account, System) ✅
+
+Deployed: Vercel (10x-rpc.vercel.app)
