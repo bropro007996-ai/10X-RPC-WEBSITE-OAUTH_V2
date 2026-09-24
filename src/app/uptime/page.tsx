@@ -195,24 +195,6 @@ export default function UptimePage() {
                 Refresh now
               </button>
             </div>
-
-            {/* Info section */}
-            <div className="mt-10 glass-card-inner p-5 sm:p-6">
-              <h3 className="text-sm font-bold text-purple-400 uppercase tracking-wider mb-3">
-                About this page
-              </h3>
-              <p className="text-sm text-white/60 leading-relaxed">
-                This status page monitors the 10X RPC split deployment in real time. The
-                <span className="text-white/80"> Vercel Frontend</span> serves the UI and OAuth flow;
-                the <span className="text-white/80">Render Backend</span> maintains 24/7 Discord
-                Gateway WebSocket connections; the <span className="text-white/80">Neon Postgres</span> database
-                is shared by both services; and the <span className="text-white/80">Discord API</span> is
-                queried to confirm gateway reachability.
-              </p>
-              <p className="text-xs text-white/40 mt-3">
-                Data refreshes automatically every 30 seconds. No authentication required.
-              </p>
-            </div>
           </div>
         </main>
 
