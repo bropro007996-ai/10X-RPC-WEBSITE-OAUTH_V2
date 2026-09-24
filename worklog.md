@@ -1330,3 +1330,40 @@ Verification:
 - All existing features still working (Profile, Status, RPC, Games RPC, Subscription) ✅
 
 Deployed: Vercel (10x-rpc.vercel.app)
+
+---
+Task ID: 37
+Agent: main (Z.ai Code)
+Task: Add navigation menu for all pages.
+
+New Component: NavMenu (src/components/tenx/NavMenu.tsx)
+- Slide-down dropdown menu with all navigation links
+- Menu items:
+  * Dashboard (→ #/dashboard)
+  * Profile (→ #/profile)
+  * Settings (→ #/config)
+  * Status Rotator (→ #/rotator)
+  * System Status (→ /uptime)
+  * Admin Panel (→ #/admin, only for admin users)
+  * Discord Server (external link)
+  * Home (→ #/)
+  * Logout (calls api.logout + redirect)
+- Uses glass-card dark theme with purple accent icons
+- Backdrop click closes the menu
+- hashchange listener auto-closes on route change
+- Permission-based: Admin Panel only shows for admin Discord IDs
+
+Dashboard Integration:
+- Replaced old "← Home" button with NavMenu in the header
+- NavMenu sits next to the Discord Server link
+- Passes isAdmin prop based on user's Discord ID
+- Passes onLogout callback that calls api.logout() + redirects
+
+Verification:
+- Lint: clean ✅
+- Browser: Menu button visible, click opens dropdown ✅
+- All 7 menu items visible: Dashboard, Profile, Settings, Status Rotator, System Status, Home, Logout ✅
+- Zero browser errors ✅
+- All existing dashboard features still working ✅
+
+Deployed: Vercel (10x-rpc.vercel.app)
