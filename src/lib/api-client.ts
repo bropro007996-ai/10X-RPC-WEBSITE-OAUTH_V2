@@ -406,4 +406,28 @@ export const api = {
   subscriptionCancel: () => fetchJson<{ ok: boolean; message: string }>(
     '/api/subscription/cancel', { method: 'POST' }
   ),
+
+  razorpayCreateOrder: (planId: string) => fetchJson<{
+    ok: boolean
+    orderId: string
+    amount: number
+    currency: string
+    keyId: string
+    planId: string
+    planName: string
+    userEmail: string
+    error?: string
+  }>('/api/subscription/razorpay/create-order', {
+    method: 'POST', body: JSON.stringify({ planId }),
+  }),
+
+  razorpayVerify: (data: {
+    razorpay_payment_id: string
+    razorpay_order_id: string
+    razorpay_signature: string
+    planId: string
+  }) => fetchJson<{ ok: boolean; message?: string; error?: string; status?: any }>(
+    '/api/subscription/razorpay/verify', {
+    method: 'POST', body: JSON.stringify(data),
+  }),
 }

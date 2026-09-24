@@ -1,5 +1,20 @@
 // 10X RPC — Subscription plans + status
 import { db } from './db'
+import Razorpay from 'razorpay'
+
+// Razorpay client (initialized lazily — only when payment routes are called)
+let razorpayInstance: Razorpay | null = null
+export function getRazorpay(): Razorpay | null {
+  const keyId = process.env.RAZORPAY_KEY_ID
+  const keySecret = process.env.RAZORPAY_KEY_SECRET
+  if (!keyId || !keySecret) return null
+  if (!razorpayInstance) {
+    razorpayInstance = new Razorpay({ key_id: keyId, key_secret: keySecret })
+  }
+  return razorpayInstance
+}
+
+export const RAZORPAY_ENABLED = !!(process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET)
 
 export interface PlanInfo {
   id: string

@@ -51,16 +51,59 @@ export function SubscriptionPanel() {
   const handleActivate = async (planId: string) => {
     setBuying(true)
     try {
-      const r = await api.subscriptionCreate(planId, 'manual_checkout')
-      if (r.ok) {
-        toast.success(r.message || 'Plan activated!', { duration: 4000 })
-        await refresh()
-        setShowPlans(false)
-      } else {
-        toast.error(r.error || 'Failed to activate plan')
+      // Step 1: Create Razorpay order
+      const orderRes = await api.razorpayCreateOrder(planId)
+      if (!orderRes.ok) {
+        toast.error(orderRes.error || 'Failed to create payment order')
+        return
       }
+
+      // Step 2: Open Razorpay checkout
+      const rzp = new (window as any).Razorpay({
+        key: orderRes.keyId,
+        amount: orderRes.amount,
+        currency: orderRes.currency,
+        name: '10X RPC',
+        description: orderRes.planName,
+        order_id: orderRes.orderId,
+        prefill: { name: orderRes.userEmail },
+        theme: { color: '#a855f7' },
+        handler: async (response: any) => {
+          // Step 3: Verify payment + activate plan
+          try {
+            const verifyRes = await api.razorpayVerify({
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_signature: response.razorpay_signature,
+              planId,
+            })
+            if (verifyRes.ok) {
+              toast.success(verifyRes.message || 'Plan activated!', { duration: 4000 })
+              await refresh()
+              setShowPlans(false)
+            } else {
+              toast.error(verifyRes.error || 'Payment verification failed')
+            }
+          } catch (e) {
+            toast.error('Payment verification failed')
+          }
+        },
+        modal: {
+          ondismiss: () => {
+            setBuying(false)
+            toast.info('Payment cancelled')
+          }
+        }
+      })
+
+      rzp.on('payment.failed', (resp: any) => {
+        toast.error(`Payment failed: ${resp.error?.description || 'unknown error'}`)
+        setBuying(false)
+      })
+
+      rzp.open()
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Failed')
+      toast.error(e instanceof Error ? e.message : 'Failed to start payment')
     } finally {
       setBuying(false)
     }
