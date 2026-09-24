@@ -1170,3 +1170,64 @@ All other features verified:
 - Daemon: connected, pushing RPC with buttons ✅
 
 Deployed: Vercel (10x-rpc.vercel.app)
+
+---
+Task ID: 34
+Agent: main (Z.ai Code)
+Task: Build premium SaaS platform per master prompt — database models, payment system, webhook, plans, notifications.
+
+New Database Models (7 new tables):
+1. Payment — tracks Razorpay orders/payments (status, order IDs, amounts, timestamps)
+2. Plan — admin-managed dynamic plans (name, price in paise, duration, features, popular badge, display order)
+3. Notification — user notifications (type, title, message, read status)
+4. ConnectedAccount — multi-account management (discordId, username, avatar, active status)
+5. AuditLog — action tracking (action, target, actor, metadata, timestamp)
+6. Announcement — admin announcements (type, title, message, active)
+7. SiteSettings — singleton site configuration (site name, hero text, discord invite, maintenance mode)
+
+Seeded Data:
+- 2 default plans: "1 Month" (₹30/30d) + "2 Months" (₹60/60d, BEST VALUE, popular)
+- Site settings singleton initialized
+
+New API Routes:
+1. GET /api/plans — public list of active plans (sorted by displayOrder)
+2. POST /api/plans — admin: create plan
+3. PUT /api/plans — admin: update plan
+4. DELETE /api/plans — admin: delete plan
+5. GET /api/payments/list — user's payment history
+6. GET /api/notifications — user's notifications + unread count
+7. POST /api/notifications — mark read / mark all read / clear
+8. POST /api/subscription/razorpay/webhook — Razorpay webhook handler:
+   - Verifies webhook signature (HMAC SHA256)
+   - Processes payment.captured, payment.failed, payment.refunded events
+   - Activates subscription automatically on captured payment
+   - Creates notifications + audit logs
+   - Idempotent (prevents duplicate processing)
+
+Razorpay Webhook:
+- Endpoint: /api/subscription/razorpay/webhook
+- Returns 400 if signature missing/invalid
+- Returns 503 if WEBHOOK_SECRET not configured
+- Processes events idempotently
+- Creates audit logs for all webhook events
+
+Verification:
+- GET /api/plans: 2 plans returned (1 Month ₹30, 2 Months ₹60) ✅
+- GET /api/payments/list: ok=true, payments=[] ✅
+- GET /api/notifications: ok=true, notifications=[], unread=0 ✅
+- POST webhook: returns 400 (no signature — correct behavior) ✅
+- All existing endpoints still work (/, /api/me, /uptime) ✅
+- Lint: clean ✅
+
+Deployed: Vercel (10x-rpc.vercel.app)
+
+Remaining from master prompt (next tasks):
+- Subscription lifecycle (suspension, grace period, auto-expiry cron)
+- Premium landing page with animations
+- Order summary + payment processing + success/fail pages
+- Dashboard upgrade (sidebar, notifications, payment history)
+- Suspended page with live countdown
+- Admin panel upgrades (plan CRUD UI, payment management, audit logs)
+- Connected accounts management
+- Workspace reset
+- Discord notifications

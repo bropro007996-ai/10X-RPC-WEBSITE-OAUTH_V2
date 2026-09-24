@@ -31,6 +31,9 @@ model User {
   globalConfig     GlobalConfig?
   trial            Trial?
   subscription     Subscription?
+  payments         Payment[]
+  notifications    Notification[]
+  connectedAccounts ConnectedAccount[]
 }
 
 model Session {
@@ -194,4 +197,113 @@ model Subscription {
 
   @@index([userId])
   @@index([status])
+}
+
+// ===== Payment System =====
+model Payment {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId          String
+  planName        String
+  amount          Float
+  currency        String   @default("INR")
+  status          String   @default("created") // created|pending|authorized|captured|failed|cancelled|refunded
+  razorpayOrderId String?  @unique
+  razorpayPaymentId String?
+  razorpaySignature String?
+  internalOrderId String   @unique
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  verifiedAt      DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@index([razorpayOrderId])
+}
+
+// ===== Dynamic Plans (admin-managed) =====
+model Plan {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  priceInr      Int      // price in paise (1 INR = 100 paise)
+  durationDays  Int
+  description   String?
+  features      String   // JSON array of feature strings
+  isActive      Boolean  @default(true)
+  displayOrder  Int      @default(0)
+  isPopular     Boolean  @default(false)
+  badge         String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+// ===== Notifications =====
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // payment_success|payment_failed|subscription_activated|expiry_warning|suspended|grace_period|admin_announcement
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  metadata  String?  // JSON
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+}
+
+// ===== Connected Accounts =====
+model ConnectedAccount {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  discordId   String
+  username    String
+  avatar      String?
+  isActive    Boolean  @default(true)
+  lastActive  DateTime?
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, discordId])
+  @@index([userId])
+}
+
+// ===== Audit Logs =====
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String   // payment_created|payment_confirmed|subscription_activated|user_suspended|workspace_reset|plan_changed|admin_access_changed|settings_changed|webhook_processed
+  target     String?  // userId or resource ID
+  actor      String?  // admin userId or "system"
+  metadata   String?  // JSON
+  createdAt  DateTime @default(now())
+
+  @@index([action])
+  @@index([target])
+}
+
+// ===== Announcements =====
+model Announcement {
+  id        String   @id @default(cuid())
+  type      String   @default("info") // info|update|warning|maintenance
+  title     String
+  message   String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ===== Site Settings =====
+model SiteSettings {
+  id              String   @id @default("singleton")
+  siteName        String   @default("10X RPC")
+  heroTitle      String   @default("Configure Once. Power Your Custom Presence.")
+  heroSubtitle   String   @default("Create one shared Custom Discord RPC configuration and manage your subscription and connected accounts from one powerful workspace.")
+  discordInvite   String   @default("https://discord.gg/jr27qeCZU")
+  supportText    String?
+  maintenanceMode Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 }
