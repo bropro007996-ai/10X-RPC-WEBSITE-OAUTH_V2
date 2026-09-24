@@ -975,3 +975,44 @@ Verification:
 - Admin panel accessible at #/admin for admin users
 
 Deployed: Vercel (10x-rpc.vercel.app)
+
+---
+Task ID: 29
+Agent: main (Z.ai Code)
+Task: Add subscription system with plans, activation, and management.
+
+New Database Model:
+- Subscription: userId (unique), plan (trial|plus|pro|lifetime), status (active|expired|cancelled), paymentId, amountPaid, currency, startsAt, endsAt, autoRenew
+
+New Lib (src/lib/subscription.ts):
+- PLANS array: 4 plans (Trial $0/30d, Plus $2/1mo, Pro $4/3mo, Lifetime $15)
+- getSubscriptionStatus(userId): returns active/plan/daysLeft/isTrial/isLifetime
+- activatePlan(userId, planId, paymentId): creates or extends subscription
+- cancelSubscription(userId): marks as cancelled (access continues until expiry)
+- checkFeatureAccess(userId): returns allowed boolean
+
+New API Routes:
+- GET /api/subscription/status: returns current status + all plans
+- POST /api/subscription/create: activate a plan (manual payment for now)
+- POST /api/subscription/cancel: cancel auto-renew
+
+Updated /api/me: now includes subscription status (plan, active, daysLeft, isTrial, isLifetime)
+
+New UI Component (SubscriptionPanel.tsx):
+- Current plan card with days left, plan name, expiry date
+- ACTIVE/EXPIRED badge
+- Upgrade/Extend button → shows plan cards (Plus, Pro, Lifetime)
+- Each plan card: price, features list, buy button
+- Cancel button (for non-trial, non-lifetime plans)
+
+Dashboard Integration:
+- SubscriptionPanel added to DashboardPage (between Smart Sleep Timer and Rich Presence Form)
+
+Verification:
+- /api/subscription/status: active=True, plan=Trial, daysLeft=30 ✅
+- /api/me: includes subscription field ✅
+- Activate Pro plan: ok=True, "Pro (3 Months) activated successfully!", daysLeft=90 ✅
+- Persisted: plan=Pro, endsAt=2026-12-23, isTrial=False ✅
+- /api/me shows Pro: subscription=Pro (3 Months), daysLeft=90 ✅
+
+Deployed: Vercel (10x-rpc.vercel.app)

@@ -7,6 +7,7 @@ import { ProfileSection } from './ProfileSection'
 import { SmartSleepTimerCard } from './SmartSleepTimerCard'
 import { RichPresenceForm } from './RichPresenceForm'
 import { GamesRpcForm } from './GamesRpcForm'
+import { SubscriptionPanel } from './SubscriptionPanel'
 
 export function DashboardPage() {
   const { navigate } = useRouter()
@@ -165,6 +166,9 @@ export function DashboardPage() {
           currentEndsAt={me.session?.sleepTimerActive ? me.session?.sleepTimerEndsAt : null}
           onSaved={refresh}
         />
+
+        {/* Subscription panel */}
+        <SubscriptionPanel />
 
         {/* Rich presence form (Normal RPC) */}
         <RichPresenceForm

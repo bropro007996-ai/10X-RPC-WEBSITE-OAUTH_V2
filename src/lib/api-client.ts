@@ -40,6 +40,16 @@ export interface Me {
   rotatorPresets?: RotatorPreset[]
   rotatorEnabled?: boolean
   app?: { name: string; tagline: string }
+  subscription?: {
+    active: boolean
+    plan: string
+    planName: string
+    endsAt: string | null
+    daysLeft: number
+    isTrial: boolean
+    isLifetime: boolean
+    autoRenew: boolean
+  }
 }
 
 export interface RpcConfig {
@@ -348,5 +358,52 @@ export const api = {
   placeholders: () => fetchJson<{ placeholders: PlaceholderEntry[] }>('/api/placeholders'),
   resolvePlaceholders: (text: string) => fetchJson<{ original: string; resolved: string }>(
     '/api/placeholders', { method: 'POST', body: JSON.stringify({ text }) }
+  ),
+
+  // ===== Subscription =====
+  subscriptionStatus: () => fetchJson<{
+    ok: boolean
+    status: {
+      active: boolean
+      plan: string
+      planName: string
+      endsAt: string | null
+      daysLeft: number
+      isTrial: boolean
+      isLifetime: boolean
+      autoRenew: boolean
+    }
+    plans: Array<{
+      id: string
+      name: string
+      price: number
+      period: string
+      durationDays: number
+      features: string[]
+      badge?: string
+      highlighted?: boolean
+    }>
+  }>('/api/subscription/status'),
+
+  subscriptionCreate: (planId: string, paymentId?: string) => fetchJson<{
+    ok: boolean
+    message?: string
+    error?: string
+    status?: {
+      active: boolean
+      plan: string
+      planName: string
+      endsAt: string | null
+      daysLeft: number
+      isTrial: boolean
+      isLifetime: boolean
+    }
+  }>('/api/subscription/create', {
+    method: 'POST',
+    body: JSON.stringify({ planId, paymentId }),
+  }),
+
+  subscriptionCancel: () => fetchJson<{ ok: boolean; message: string }>(
+    '/api/subscription/cancel', { method: 'POST' }
   ),
 }

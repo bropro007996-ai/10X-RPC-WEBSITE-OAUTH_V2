@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
 import { avatarUrl } from '@/lib/discord-oauth'
 import { CONFIG } from '@/lib/config'
+import { getSubscriptionStatus } from '@/lib/subscription'
 
 export const dynamic = 'force-dynamic'
 
@@ -172,6 +173,7 @@ export async function GET() {
       name: CONFIG.app.name,
       tagline: CONFIG.app.tagline,
     },
+    subscription: await getSubscriptionStatus(session.userId),
   })
   } catch (err) {
     console.error('Unhandled error in /api/me:', err)
