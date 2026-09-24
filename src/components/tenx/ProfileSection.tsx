@@ -28,14 +28,6 @@ const PLATFORM_ITEMS = [
   { value: 'meta_quest', label: 'VR', icon: VrIcon },
 ]
 
-// === Quick status presets ===
-const QUICK_PRESETS = [
-  { emoji: '🎮', label: 'Playing' },
-  { emoji: '💻', label: 'Coding' },
-  { emoji: '🎵', label: 'Listening to music' },
-  { emoji: '😴', label: 'AFK' },
-] as const
-
 // === Trial total days used for the countdown bar percentage ===
 const TRIAL_TOTAL_DAYS = 14
 
@@ -186,23 +178,6 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
       console.error(e)
       setStatusEnabled(!v)
       toast.error('Failed to toggle status')
-    }
-  }
-
-  const handleQuickPreset = async (preset: (typeof QUICK_PRESETS)[number]) => {
-    // Optimistic local update so the pill reflects the new status immediately
-    setCustomMsg(preset.label)
-    setCustomEmoji(preset.emoji)
-    try {
-      await api.statusUpdate({
-        customStatus: preset.label,
-        customStatusEmoji: preset.emoji,
-      })
-      toast.success(`Status set: ${preset.emoji} ${preset.label}`, { duration: 2000 })
-      onRefresh()
-    } catch (e) {
-      console.error(e)
-      toast.error('Failed to set quick status')
     }
   }
 
@@ -472,32 +447,6 @@ export function ProfileSection({ me, onRefresh }: { me: Me; onRefresh: () => voi
             className="bg-transparent flex-1 outline-none text-sm text-white placeholder:text-white/40"
             maxLength={128}
           />
-        </div>
-
-        {/* Quick Status Presets — instantly set common statuses */}
-        <div className="relative z-10 w-full max-w-sm mx-auto mt-3 grid grid-cols-4 gap-2">
-          {QUICK_PRESETS.map(preset => {
-            const isActive = customMsg === preset.label && customEmoji === preset.emoji
-            return (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => handleQuickPreset(preset)}
-                className={`flex flex-col items-center justify-center gap-1 py-2 px-1 rounded-xl border transition-all active:scale-95 ${
-                  isActive
-                    ? 'bg-purple-500/15 border-purple-500/40'
-                    : 'bg-[#181922] border-white/8 hover:bg-white/10 hover:border-purple-500/30'
-                }`}
-                title={`Set status: ${preset.emoji} ${preset.label}`}
-                aria-label={`Quick status: ${preset.label}`}
-              >
-                <span className="text-lg leading-none">{preset.emoji}</span>
-                <span className="text-[10px] font-medium text-white/70 truncate w-full text-center">
-                  {preset.label}
-                </span>
-              </button>
-            )
-          })}
         </div>
 
         {/* Centered Username + Subscription Badge + Status (OFFLINE / ONLINE) + Trial Countdown */}
