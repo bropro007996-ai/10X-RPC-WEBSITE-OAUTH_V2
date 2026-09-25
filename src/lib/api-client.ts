@@ -237,6 +237,40 @@ export interface AdminSettings {
   updatedAt: string
 }
 
+export interface AdminPlan {
+  id: string
+  name: string
+  slug: string
+  priceInr: number
+  priceDisplay: string
+  durationDays: number
+  description: string | null
+  features: string[]
+  isActive: boolean
+  isPopular: boolean
+  badge: string | null
+  displayOrder: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminNotificationLog {
+  id: string
+  userId: string
+  type: string
+  title: string
+  message: string
+  metadata: string | null
+  readAt: string | null
+  createdAt: string
+  user: {
+    id: string
+    discordId: string
+    username: string
+    avatar: string
+  } | null
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const isGet = !init?.method || init.method.toUpperCase() === 'GET'
   const maxAttempts = isGet ? 3 : 1
@@ -505,11 +539,27 @@ export const api = {
     '/api/admin/send-notification', { method: 'POST', body: JSON.stringify(data) }
   ),
 
-  adminPlans: () => fetchJson<{ ok: boolean; plans: any[] }>('/api/plans'),
-  adminCreatePlan: (data: Record<string, unknown>) => fetchJson<{ ok: boolean; plan: any }>(
+  adminNotifications: (params?: { take?: number; skip?: number; unreadOnly?: boolean }) => {
+    const qs = new URLSearchParams()
+    if (params?.take) qs.set('take', String(params.take))
+    if (params?.skip) qs.set('skip', String(params.skip))
+    if (params?.unreadOnly) qs.set('unread', 'true')
+    return fetchJson<{ ok: boolean; notifications: AdminNotificationLog[]; total: number; unread: number }>(`/api/admin/notifications?${qs}`)
+  },
+
+  adminPlans: () => fetchJson<{ ok: boolean; plans: AdminPlan[] }>('/api/plans?all=true'),
+  adminCreatePlan: (data: {
+    name: string; slug: string; priceInr: number; durationDays: number;
+    description?: string; features?: string[]; isActive?: boolean;
+    displayOrder?: number; isPopular?: boolean; badge?: string;
+  }) => fetchJson<{ ok: boolean; plan: AdminPlan }>(
     '/api/plans', { method: 'POST', body: JSON.stringify(data) }
   ),
-  adminUpdatePlan: (data: Record<string, unknown>) => fetchJson<{ ok: boolean; plan: any }>(
+  adminUpdatePlan: (data: {
+    id: string; name?: string; priceInr?: number; durationDays?: number;
+    description?: string; features?: string[]; isActive?: boolean;
+    displayOrder?: number; isPopular?: boolean; badge?: string;
+  }) => fetchJson<{ ok: boolean; plan: AdminPlan }>(
     '/api/plans', { method: 'PUT', body: JSON.stringify(data) }
   ),
   adminDeletePlan: (id: string) => fetchJson<{ ok: boolean }>(`/api/plans?id=${id}`, { method: 'DELETE' }),

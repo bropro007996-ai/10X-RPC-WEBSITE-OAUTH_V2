@@ -5,7 +5,7 @@ import { useRouter } from '../useRouter'
 import { BackButton } from '../ui'
 import {
   LayoutDashboard, Users, CreditCard, Crown, Megaphone, Send,
-  Settings, ScrollText, HeartPulse, RefreshCw, Shield
+  Settings, ScrollText, HeartPulse, RefreshCw, Shield, Tag, Bell
 } from 'lucide-react'
 import { OverviewTab } from './OverviewTab'
 import { UsersTab } from './UsersTab'
@@ -16,14 +16,18 @@ import { BroadcastTab } from './BroadcastTab'
 import { SettingsTab } from './SettingsTab'
 import { AuditLogsTab } from './AuditLogsTab'
 import { HealthTab } from './HealthTab'
+import { PlansTab } from './PlansTab'
+import { NotificationsTab } from './NotificationsTab'
 
 export type AdminTab =
   | 'overview'
   | 'users'
   | 'payments'
   | 'subscriptions'
+  | 'plans'
   | 'announcements'
   | 'broadcast'
+  | 'notifications'
   | 'settings'
   | 'audit-logs'
   | 'health'
@@ -40,8 +44,10 @@ const TABS: TabDef[] = [
   { id: 'users',         label: 'Users',         icon: Users,           desc: 'Manage user accounts' },
   { id: 'payments',      label: 'Payments',      icon: CreditCard,     desc: 'All payment transactions' },
   { id: 'subscriptions', label: 'Subscriptions', icon: Crown,           desc: 'Active & expired subs' },
+  { id: 'plans',         label: 'Plans',         icon: Tag,             desc: 'Subscription plan CRUD' },
   { id: 'announcements', label: 'Announcements', icon: Megaphone,      desc: 'Site-wide announcements' },
   { id: 'broadcast',     label: 'Broadcast',    icon: Send,           desc: 'Mass notify users' },
+  { id: 'notifications', label: 'Notifications', icon: Bell,            desc: 'Sent notification log' },
   { id: 'settings',      label: 'Settings',      icon: Settings,        desc: 'Site configuration' },
   { id: 'audit-logs',    label: 'Audit Logs',    icon: ScrollText,      desc: 'Admin action history' },
   { id: 'health',        label: 'System Health', icon: HeartPulse,      desc: 'Service status' },
@@ -179,8 +185,10 @@ export function AdminShell({ refreshKey, onRefresh, refreshing, autoRefresh, onT
           {active === 'users' && <UsersTab refreshKey={refreshKey} />}
           {active === 'payments' && <PaymentsTab refreshKey={refreshKey} />}
           {active === 'subscriptions' && <SubscriptionsTab refreshKey={refreshKey} />}
+          {active === 'plans' && <PlansTab refreshKey={refreshKey} />}
           {active === 'announcements' && <AnnouncementsTab refreshKey={refreshKey} />}
           {active === 'broadcast' && <BroadcastTab refreshKey={refreshKey} />}
+          {active === 'notifications' && <NotificationsTab refreshKey={refreshKey} />}
           {active === 'settings' && <SettingsTab refreshKey={refreshKey} />}
           {active === 'audit-logs' && <AuditLogsTab refreshKey={refreshKey} />}
           {active === 'health' && <HealthTab refreshKey={refreshKey} />}

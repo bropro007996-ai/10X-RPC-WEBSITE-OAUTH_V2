@@ -11,9 +11,20 @@ function isAdmin(discordId: string): boolean {
 }
 
 // GET — public: list active plans (sorted by displayOrder)
-export async function GET() {
+// GET ?all=true — admin: list ALL plans (including inactive)
+export async function GET(req: Request) {
+  const { searchParams } = new URL(req.url)
+  const all = searchParams.get('all') === 'true'
+
+  // If ?all=true is requested, require admin session
+  if (all) {
+    const session = await getSession()
+    if (!session) return NextResponse.json({ error: 'not_authenticated' }, { status: 401 })
+    if (!isAdmin(session.user.discordId)) return NextResponse.json({ error: 'forbidden' }, { status: 403 })
+  }
+
   const plans = await db.plan.findMany({
-    where: { isActive: true },
+    where: all ? {} : { isActive: true },
     orderBy: { displayOrder: 'asc' },
   })
   return NextResponse.json({
@@ -27,9 +38,12 @@ export async function GET() {
       durationDays: p.durationDays,
       description: p.description,
       features: JSON.parse(p.features || '[]'),
+      isActive: p.isActive,
       isPopular: p.isPopular,
       badge: p.badge,
       displayOrder: p.displayOrder,
+      createdAt: p.createdAt.toISOString(),
+      updatedAt: p.updatedAt.toISOString(),
     })),
   })
 }
