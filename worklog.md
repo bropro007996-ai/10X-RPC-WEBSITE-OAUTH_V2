@@ -1628,3 +1628,51 @@ Stage Summary:
 - Both Prisma schemas now have 22 models total
 - All changes committed and ready for Vercel
 - The postinstall script (from earlier commit) auto-switches to Postgres schema on Vercel builds
+
+---
+Task ID: vercel-deploy-1
+Agent: Z.ai Code (main)
+Task: Deploy all admin features to Vercel + update env vars + push schema to Neon
+
+Work Log:
+- Authenticated Vercel CLI with provided token (user: sanjayram782681-8646)
+- Found existing Vercel project: `10x-rpc` (production URL: https://www.10xrpc.shop)
+- Linked local project to `10x-rpc` via `vercel link --project 10x-rpc`
+- Fetched all env var IDs via Vercel REST API (GET /v9/projects/{id}/env)
+- Updated 5 environment variables via Vercel API (PATCH /v9/projects/{id}/env/{envVarId}):
+  * DISCORD_CLIENT_ID → 1549299168562905148
+  * DISCORD_CLIENT_SECRET → P30nH74wVcjWtekY-olVcOlLiLxykfsy
+  * DISCORD_BOT_TOKEN → MTU0OTI5OTE2ODU2MjkwNTE0OA.GY-Jxb...
+  * DISCORD_REDIRECT_URI → https://www.10xrpc.shop/auth/callback
+  * NEXT_PUBLIC_APP_URL → https://www.10xrpc.shop
+- Deployed to production via `vercel --prod --yes`:
+  * Build completed in 28s
+  * postinstall script ran: "✅ Switched to Postgres schema for Vercel build"
+  * Production URL: https://www.10xrpc.shop
+  * No build errors
+- Pushed Prisma schema to Neon Postgres:
+  * Switched local schema to Postgres (cp schema.prod.prisma schema.prisma)
+  * Ran `bun run db:push` with Neon DATABASE_URL pulled from Vercel env
+  * Database synced in 3.99s — all 22 tables created/updated in Neon
+  * Restored local schema to SQLite (scripts/use-sqlite.sh)
+  * Cleaned up .env.vercel (removed secrets file)
+
+Verification:
+- Production https://www.10xrpc.shop/ → HTTP 200 ✓
+- Production https://www.10xrpc.shop/admin → HTTP 200 ✓
+- All 22 admin API endpoints live (401 unauth / 405 wrong method = correct) ✓
+- Public /api/plans returns 2 plans ✓
+- postinstall script auto-switched to Postgres schema ✓
+- Neon database synced with all 22 Prisma models ✓
+- Local dev server still works (SQLite) ✓
+- ESLint: 0 errors ✓
+
+Stage Summary:
+- Vercel production deployment complete at https://www.10xrpc.shop
+- 5 env vars updated with fresh Discord credentials
+- Neon Postgres database has all 22 tables (including 11 new admin tables)
+- Discord redirect URL set to https://www.10xrpc.shop/auth/callback
+- All admin panel features (20 tabs) now live in production
+
+⚠️ SECURITY: All credentials shared in chat were used for deployment but should be ROTATED immediately:
+- GitHub PAT, Vercel token, Render API key, Discord bot token + client secret
