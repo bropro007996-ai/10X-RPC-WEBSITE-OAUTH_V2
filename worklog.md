@@ -1572,3 +1572,59 @@ Stage Summary:
 - Activity logging now integrated into demo-login, logout, and rpc/toggle — the Activity tab will populate automatically as users use the site
 - All changes committed (commit 95dba34) — ready for Vercel deployment
 - The postinstall script (from previous commit) will auto-switch to Postgres schema on Vercel builds
+
+---
+Task ID: admin-apikeys-maintenance-export-1
+Agent: Z.ai Code (main)
+Task: Admin Dashboard upgrade and add more features, check/test/update, update for Vercel
+
+Work Log:
+- Added 2 new Prisma models to both schema.prisma (SQLite) and schema.prod.prisma (Postgres):
+  * ApiKey (name, keyHash SHA-256, prefix, permissions JSON, lastUsedAt, lastUsedIp, isActive, createdBy, expiresAt)
+  * MaintenanceWindow (title, message, startsAt, endsAt, isActive, isResolved, createdBy, resolvedAt)
+- Ran `bun run db:push` to sync SQLite DB; updated schema.sqlite.bak. Both schemas now have 22 models.
+- Created 3 new API endpoints:
+  * GET/POST/DELETE /api/admin/api-keys — admin-only CRUD for programmatic API keys
+    - POST generates raw key `10xrpc_<48 hex chars>`, stores SHA-256 hash, returns raw key ONCE
+    - 11 permission scopes: read:users, write:users, read:payments, write:payments, read:subscriptions, write:subscriptions, read:stats, read:analytics, send:notifications, manage:announcements, manage:plans
+    - Optional expiry (expiresInDays)
+    - Logs to audit trail on create/delete
+  * GET/POST/PUT/DELETE /api/admin/maintenance — full CRUD for maintenance windows
+    - Auto-status calculation: scheduled / active / ended / resolved
+    - PUT with action=resolve marks as resolved; action=cancel deactivates
+    - Validates endsAt > startsAt
+    - Logs to audit trail
+  * GET /api/admin/export — consolidated data export (CSV or JSON)
+    - 5 exportable entities: users, payments, subscriptions, activity, audit-logs
+    - CSV format: RFC 4180 compliant with quoted fields
+    - JSON format: { ok, entity, count, rows }
+    - Max 1000 rows per export, sorted by most recent
+    - Downloads as file attachment with proper Content-Disposition header
+    - Logs to audit trail
+- Added typed interfaces to api-client.ts: AdminApiKey, AdminMaintenanceWindow
+- Added 8 new api-client methods: adminApiKeys, adminCreateApiKey, adminDeleteApiKey, adminMaintenance, adminCreateMaintenance, adminUpdateMaintenance, adminDeleteMaintenance, adminExportUrl
+- Built 3 new tab components:
+  * ApiKeysTab.tsx — create form with name, permission scope multi-select (11 scopes), expiry days; raw key banner shown once after creation with copy-to-clipboard; per-key display of prefix, permissions, last-used info, expiry; revoke button
+  * MaintenanceTab.tsx — schedule form with title, message, datetime-local start/end inputs; active maintenance banner with red pulse; per-window status badge (scheduled/active/ended/resolved) with color coding; resolve/cancel/delete actions
+  * ExportCenterTab.tsx — 5 entity cards (Users, Payments, Subscriptions, Activity Events, Audit Logs), each with CSV + JSON download buttons; info banner explaining export limits; notes section
+- Updated AdminShell.tsx: added 3 new tabs (API Keys, Maintenance, Export) + render lines. Menu now has 20 tabs total.
+
+Verification:
+- ESLint: 0 errors, 0 warnings ✓
+- All 3 new endpoints return HTTP 200 with valid data when authenticated ✓
+- All 3 new endpoints return HTTP 401 when unauthenticated ✓
+- API Keys: created key with 2 permissions, verified raw key returned once, listed (1 active), deleted ✓
+- Maintenance: created scheduled window, verified status=scheduled, resolved it, deleted ✓
+- Export: CSV download returned 366 bytes with proper headers (id,discordId,username,...); JSON export returned 5 activity rows ✓
+- /admin page renders: 31KB HTML, _next bundle loads, no hydration errors ✓
+- Dev log: no runtime errors ✓
+- Admin config reverted to original (removed temp demo-user-10x) ✓
+- All changes committed (commit 1b09d1e) — ready for Vercel deployment ✓
+
+Stage Summary:
+- Admin panel expanded from 17 tabs → 20 tabs
+- 3 genuinely new features added: API Keys (programmatic access), Maintenance Scheduler (downtime planning), Export Center (consolidated data export)
+- 2 new Prisma models + 3 new API endpoints + 3 new tab components
+- Both Prisma schemas now have 22 models total
+- All changes committed and ready for Vercel
+- The postinstall script (from earlier commit) auto-switches to Postgres schema on Vercel builds
