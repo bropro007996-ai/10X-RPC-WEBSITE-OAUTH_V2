@@ -1705,3 +1705,41 @@ Verification:
 - All admin endpoints live (401 unauth = correct) ✓
 - No hydration errors ✓
 - Local dev server works with SQLite ✓
+
+---
+Task ID: admin-mobile-friendly-1
+Agent: Z.ai Code (main)
+Task: Make admin panel mobile-friendly
+
+Work Log:
+- Replaced mobile horizontal pills with a proper slide-out drawer:
+  * Hamburger menu button in sticky header (mobile only, hidden on lg+)
+  * Drawer slides in from left (85vw width, max 320px)
+  * Backdrop dims the page + locks body scroll when open
+  * Auto-closes when a tab is selected (via selectTab helper)
+  * Contains: search input, category-grouped tabs with chevron indicators
+- Added sticky header on mobile:
+  * Transparent on desktop, solid + backdrop-blur on mobile
+  * Compact title "Admin" on mobile, "Admin Dashboard" on desktop
+  * Refresh button shows icon-only on mobile
+- Added bottom tab bar for quick mobile navigation (5 most-used tabs):
+  * Home (Overview), Users, Stats (Analytics), Feed (Activity), Status (Health)
+  * Fixed to bottom, respects iOS safe-area-inset-bottom
+  * Icon + label, active tab highlighted purple
+- Fixed responsive grids across 9 admin tabs:
+  * 8 summary stat grids: grid-cols-3 → grid-cols-2 sm:grid-cols-3
+  * Bulk control buttons: grid-cols-3 → grid-cols-1 sm:grid-cols-3
+  * PlansTab form fields: grid-cols-3 → grid-cols-1 sm:grid-cols-3
+- Reduced mobile padding (px-3 py-4 vs px-6 py-6 desktop)
+- Added pb-24 on mobile to clear the bottom nav bar
+- Added safe-area-bottom CSS utility class in globals.css
+- Tab title strip hides description on mobile
+- Fixed React lint error: moved setState out of useEffect (selectTab helper)
+- Desktop sidebar unchanged (still sticky with search + collapsible categories)
+- Committed (5bfbfe4) + deployed to Vercel
+
+Verification:
+- ESLint: 0 errors, 0 warnings ✓
+- Production / → HTTP 200 ✓
+- Production /admin HTML renders (16KB mobile, no hydration errors) ✓
+- Local dev works ✓
