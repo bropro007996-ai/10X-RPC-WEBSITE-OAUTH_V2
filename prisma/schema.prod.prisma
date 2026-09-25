@@ -371,3 +371,39 @@ model ActivityEvent {
   @@index([category])
   @@index([createdAt])
 }
+
+model ApiKey {
+  id          String   @id @default(cuid())
+  name        String
+  keyHash     String   @unique
+  prefix      String
+  permissions String   @default("[]")
+  lastUsedAt  DateTime?
+  lastUsedIp  String?
+  isActive    Boolean  @default(true)
+  createdBy   String?
+  expiresAt   DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([prefix])
+}
+
+model MaintenanceWindow {
+  id          String   @id @default(cuid())
+  title       String
+  message     String
+  startsAt    DateTime
+  endsAt      DateTime
+  isActive    Boolean  @default(true)
+  isResolved  Boolean  @default(false)
+  createdBy   String?
+  resolvedAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([isResolved])
+  @@index([startsAt])
+}

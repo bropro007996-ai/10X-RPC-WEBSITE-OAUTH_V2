@@ -354,6 +354,35 @@ export interface AdminIpBlock {
   updatedAt: string
 }
 
+export interface AdminApiKey {
+  id: string
+  name: string
+  prefix: string
+  permissions: string[]
+  lastUsedAt: string | null
+  lastUsedIp: string | null
+  isActive: boolean
+  createdBy: string | null
+  expiresAt: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminMaintenanceWindow {
+  id: string
+  title: string
+  message: string
+  startsAt: string
+  endsAt: string
+  isActive: boolean
+  isResolved: boolean
+  createdBy: string | null
+  resolvedAt: string | null
+  createdAt: string
+  updatedAt: string
+  status: 'scheduled' | 'active' | 'ended' | 'resolved'
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const isGet = !init?.method || init.method.toUpperCase() === 'GET'
   const maxAttempts = isGet ? 3 : 1
@@ -670,6 +699,23 @@ export const api = {
     '/api/admin/ip-blocklist', { method: 'POST', body: JSON.stringify({ ip, reason }) }
   ),
   adminRemoveIpBlock: (id: string) => fetchJson<{ ok: boolean }>(`/api/admin/ip-blocklist?id=${id}`, { method: 'DELETE' }),
+
+  adminApiKeys: () => fetchJson<{ ok: boolean; keys: AdminApiKey[]; availableScopes: string[]; activeCount: number }>('/api/admin/api-keys'),
+  adminCreateApiKey: (data: { name: string; permissions?: string[]; expiresInDays?: number }) => fetchJson<{ ok: boolean; apiKey: AdminApiKey; rawKey: string; warning: string }>(
+    '/api/admin/api-keys', { method: 'POST', body: JSON.stringify(data) }
+  ),
+  adminDeleteApiKey: (id: string) => fetchJson<{ ok: boolean }>(`/api/admin/api-keys?id=${id}`, { method: 'DELETE' }),
+
+  adminMaintenance: () => fetchJson<{ ok: boolean; windows: AdminMaintenanceWindow[]; activeCount: number; scheduledCount: number }>('/api/admin/maintenance'),
+  adminCreateMaintenance: (data: { title: string; message: string; startsAt: string; endsAt: string }) => fetchJson<{ ok: boolean; window: AdminMaintenanceWindow }>(
+    '/api/admin/maintenance', { method: 'POST', body: JSON.stringify(data) }
+  ),
+  adminUpdateMaintenance: (id: string, action: 'resolve' | 'cancel') => fetchJson<{ ok: boolean; window: AdminMaintenanceWindow }>(
+    '/api/admin/maintenance', { method: 'PUT', body: JSON.stringify({ id, action }) }
+  ),
+  adminDeleteMaintenance: (id: string) => fetchJson<{ ok: boolean }>(`/api/admin/maintenance?id=${id}`, { method: 'DELETE' }),
+
+  adminExportUrl: (entity: string, format: 'csv' | 'json' = 'csv') => `/api/admin/export?entity=${entity}&format=${format}`,
 
   adminPlans: () => fetchJson<{ ok: boolean; plans: AdminPlan[] }>('/api/plans?all=true'),
   adminCreatePlan: (data: {

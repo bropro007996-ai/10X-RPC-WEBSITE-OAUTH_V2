@@ -6,7 +6,7 @@ import { BackButton } from '../ui'
 import {
   LayoutDashboard, Users, CreditCard, Crown, Megaphone, Send,
   Settings, ScrollText, HeartPulse, RefreshCw, Shield, Tag, Bell,
-  BarChart3, Flag, Webhook, UserCog, Activity, ShieldBan
+  BarChart3, Flag, Webhook, UserCog, Activity, ShieldBan, KeyRound, Wrench, Download
 } from 'lucide-react'
 import { OverviewTab } from './OverviewTab'
 import { UsersTab } from './UsersTab'
@@ -25,10 +25,14 @@ import { WebhooksTab } from './WebhooksTab'
 import { ImpersonateTab } from './ImpersonateTab'
 import { ActivityTab } from './ActivityTab'
 import { IpBlocklistTab } from './IpBlocklistTab'
+import { ApiKeysTab } from './ApiKeysTab'
+import { MaintenanceTab } from './MaintenanceTab'
+import { ExportCenterTab } from './ExportCenterTab'
 
 export type AdminTab =
   | 'overview'
   | 'analytics'
+  | 'activity'
   | 'users'
   | 'payments'
   | 'subscriptions'
@@ -36,11 +40,13 @@ export type AdminTab =
   | 'announcements'
   | 'broadcast'
   | 'notifications'
+  | 'impersonate'
   | 'feature-flags'
   | 'webhooks'
-  | 'impersonate'
-  | 'activity'
   | 'ip-blocklist'
+  | 'api-keys'
+  | 'maintenance'
+  | 'export'
   | 'settings'
   | 'audit-logs'
   | 'health'
@@ -67,6 +73,9 @@ const TABS: TabDef[] = [
   { id: 'feature-flags', label: 'Feature Flags', icon: Flag,            desc: 'Global feature toggles' },
   { id: 'webhooks',      label: 'Webhooks',      icon: Webhook,         desc: 'Outgoing webhook config' },
   { id: 'ip-blocklist',  label: 'IP Blocklist',  icon: ShieldBan,       desc: 'Block malicious IPs' },
+  { id: 'api-keys',      label: 'API Keys',      icon: KeyRound,        desc: 'Programmatic access tokens' },
+  { id: 'maintenance',   label: 'Maintenance',   icon: Wrench,          desc: 'Schedule downtime windows' },
+  { id: 'export',        label: 'Export',        icon: Download,         desc: 'Download data (CSV/JSON)' },
   { id: 'settings',      label: 'Settings',      icon: Settings,        desc: 'Site configuration' },
   { id: 'audit-logs',    label: 'Audit Logs',    icon: ScrollText,      desc: 'Admin action history' },
   { id: 'health',        label: 'System Health', icon: HeartPulse,      desc: 'Service status' },
@@ -214,6 +223,9 @@ export function AdminShell({ refreshKey, onRefresh, refreshing, autoRefresh, onT
           {active === 'feature-flags' && <FeatureFlagsTab refreshKey={refreshKey} />}
           {active === 'webhooks' && <WebhooksTab refreshKey={refreshKey} />}
           {active === 'ip-blocklist' && <IpBlocklistTab refreshKey={refreshKey} />}
+          {active === 'api-keys' && <ApiKeysTab refreshKey={refreshKey} />}
+          {active === 'maintenance' && <MaintenanceTab refreshKey={refreshKey} />}
+          {active === 'export' && <ExportCenterTab refreshKey={refreshKey} />}
           {active === 'settings' && <SettingsTab refreshKey={refreshKey} />}
           {active === 'audit-logs' && <AuditLogsTab refreshKey={refreshKey} />}
           {active === 'health' && <HealthTab refreshKey={refreshKey} />}
