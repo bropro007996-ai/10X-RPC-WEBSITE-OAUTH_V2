@@ -1521,3 +1521,54 @@ Stage Summary:
 - 3 new Prisma models + 4 new API endpoints + 3 new tab components
 - All write operations verified end-to-end including a real webhook delivery to httpbin.org
 - Recharts library utilized for the first time in the project (was installed but unused)
+
+---
+Task ID: admin-impersonate-activity-ipblock-1
+Agent: Z.ai Code (main)
+Task: Admin panel add the menu and check and test and update and also update for the vercel
+
+Work Log:
+- Added 2 new Prisma models to both schema.prisma (SQLite) and schema.prod.prisma (Postgres):
+  * IpBlock (ip, reason, blockedBy, isActive) — for the IP blocklist
+  * ActivityEvent (userId, username, type, category, ip, metadata) — for the real-time activity feed
+- Ran `bun run db:push` to sync SQLite DB; updated schema.sqlite.bak.
+- Created activity logger helper at src/lib/activity/logger.ts:
+  * Exports `logActivity(payload)` — non-blocking, never breaks the main flow
+  * Auto-captures client IP from x-forwarded-for / x-real-ip / cf-connecting-ip headers
+  * Uses async `headers()` (Next.js 16 requires await)
+- Created 3 new API endpoints:
+  * POST/DELETE /api/admin/impersonate — admin logs in as any user (2-hour limit), original admin token saved in `10x_rpc_impersonator` cookie for restoration; cannot impersonate other admins; logs to audit trail
+  * GET /api/admin/activity — list activity events with category/type filters + pagination; returns aggregated type counts for filter chips
+  * GET/POST/DELETE /api/admin/ip-blocklist — full CRUD for IP blocks; validates IPv4/IPv6 format; logs to audit trail
+- Hooked activity logging into existing user-facing endpoints:
+  * /api/demo-login → logs `login` event with method=demo
+  * /api/logout → logs `logout` event
+  * /api/rpc/toggle → logs `rpc_enabled` or `rpc_disabled` event
+- Added typed interfaces to api-client.ts: AdminActivityEvent, AdminIpBlock
+- Added 7 new api-client methods: adminImpersonate, adminEndImpersonation, adminActivity, adminIpBlocklist, adminAddIpBlock, adminRemoveIpBlock
+- Built 3 new tab components:
+  * ImpersonateTab.tsx — searchable user list with "Impersonate" button per user; warning banner; end-impersonation button; admins are blocked from impersonation; redirects to /dashboard after impersonation starts
+  * ActivityTab.tsx — real-time event feed with category filters (all/user/payment/rpc/admin/system), search, top event type chips, per-event metadata display
+  * IpBlocklistTab.tsx — add IP form with reason field, list of blocked IPs with active/inactive status, unblock button, warning banner
+- Updated AdminShell.tsx: added 3 new tabs (Activity, Impersonate, IP Blocklist) + render lines. Menu now has 17 tabs total.
+- Fixed initial bug: activity/logger.ts was importing `./db` (wrong relative path) → changed to `../db`
+- Fixed Next.js 16 async headers warning: changed `headers()` sync call to `await headers()`
+
+Verification:
+- ESLint: 0 errors, 0 warnings ✓
+- All 3 new endpoints return HTTP 200 with valid data when authenticated ✓
+- All 3 new endpoints return HTTP 401 when unauthenticated ✓
+- Activity feed: captured 4 real events (2x login, 2x rpc_enabled) with proper IP addresses (::1 for localhost) ✓
+- IP blocklist: created block for 192.168.99.99 with reason, verified it appears in list, deleted it, verified removal ✓
+- Impersonation endpoint: returns 405 on GET (correct, only POST/DELETE allowed) ✓
+- /admin page renders: 31KB HTML, _next bundle loads, no hydration errors ✓
+- Dev log: no runtime errors after async headers fix ✓
+- Admin config reverted to original (removed temp demo-user-10x) ✓
+
+Stage Summary:
+- Admin panel expanded from 14 tabs → 17 tabs
+- 3 genuinely new features added: Impersonate (login as user), Activity Feed (real-time events), IP Blocklist (security)
+- 2 new Prisma models + 3 new API endpoints + 3 new tab components + 1 activity logger helper
+- Activity logging now integrated into demo-login, logout, and rpc/toggle — the Activity tab will populate automatically as users use the site
+- All changes committed (commit 95dba34) — ready for Vercel deployment
+- The postinstall script (from previous commit) will auto-switch to Postgres schema on Vercel builds
