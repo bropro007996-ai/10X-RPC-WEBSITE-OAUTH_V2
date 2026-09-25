@@ -6,7 +6,7 @@ import { BackButton } from '../ui'
 import {
   LayoutDashboard, Users, CreditCard, Crown, Megaphone, Send,
   Settings, ScrollText, HeartPulse, RefreshCw, Shield, Tag, Bell,
-  BarChart3, Flag, Webhook
+  BarChart3, Flag, Webhook, UserCog, Activity, ShieldBan
 } from 'lucide-react'
 import { OverviewTab } from './OverviewTab'
 import { UsersTab } from './UsersTab'
@@ -22,6 +22,9 @@ import { NotificationsTab } from './NotificationsTab'
 import { AnalyticsTab } from './AnalyticsTab'
 import { FeatureFlagsTab } from './FeatureFlagsTab'
 import { WebhooksTab } from './WebhooksTab'
+import { ImpersonateTab } from './ImpersonateTab'
+import { ActivityTab } from './ActivityTab'
+import { IpBlocklistTab } from './IpBlocklistTab'
 
 export type AdminTab =
   | 'overview'
@@ -35,6 +38,9 @@ export type AdminTab =
   | 'notifications'
   | 'feature-flags'
   | 'webhooks'
+  | 'impersonate'
+  | 'activity'
+  | 'ip-blocklist'
   | 'settings'
   | 'audit-logs'
   | 'health'
@@ -49,6 +55,7 @@ interface TabDef {
 const TABS: TabDef[] = [
   { id: 'overview',      label: 'Overview',      icon: LayoutDashboard, desc: 'Stats, daemon & bulk control' },
   { id: 'analytics',     label: 'Analytics',     icon: BarChart3,       desc: 'Charts & growth metrics' },
+  { id: 'activity',      label: 'Activity',      icon: Activity,        desc: 'Real-time event feed' },
   { id: 'users',         label: 'Users',         icon: Users,           desc: 'Manage user accounts' },
   { id: 'payments',      label: 'Payments',      icon: CreditCard,     desc: 'All payment transactions' },
   { id: 'subscriptions', label: 'Subscriptions', icon: Crown,           desc: 'Active & expired subs' },
@@ -56,8 +63,10 @@ const TABS: TabDef[] = [
   { id: 'announcements', label: 'Announcements', icon: Megaphone,      desc: 'Site-wide announcements' },
   { id: 'broadcast',     label: 'Broadcast',    icon: Send,           desc: 'Mass notify users' },
   { id: 'notifications', label: 'Notifications', icon: Bell,            desc: 'Sent notification log' },
+  { id: 'impersonate',   label: 'Impersonate',   icon: UserCog,         desc: 'Login as any user' },
   { id: 'feature-flags', label: 'Feature Flags', icon: Flag,            desc: 'Global feature toggles' },
   { id: 'webhooks',      label: 'Webhooks',      icon: Webhook,         desc: 'Outgoing webhook config' },
+  { id: 'ip-blocklist',  label: 'IP Blocklist',  icon: ShieldBan,       desc: 'Block malicious IPs' },
   { id: 'settings',      label: 'Settings',      icon: Settings,        desc: 'Site configuration' },
   { id: 'audit-logs',    label: 'Audit Logs',    icon: ScrollText,      desc: 'Admin action history' },
   { id: 'health',        label: 'System Health', icon: HeartPulse,      desc: 'Service status' },
@@ -193,6 +202,7 @@ export function AdminShell({ refreshKey, onRefresh, refreshing, autoRefresh, onT
 
           {active === 'overview' && <OverviewTab refreshKey={refreshKey} />}
           {active === 'analytics' && <AnalyticsTab refreshKey={refreshKey} />}
+          {active === 'activity' && <ActivityTab refreshKey={refreshKey} />}
           {active === 'users' && <UsersTab refreshKey={refreshKey} />}
           {active === 'payments' && <PaymentsTab refreshKey={refreshKey} />}
           {active === 'subscriptions' && <SubscriptionsTab refreshKey={refreshKey} />}
@@ -200,8 +210,10 @@ export function AdminShell({ refreshKey, onRefresh, refreshing, autoRefresh, onT
           {active === 'announcements' && <AnnouncementsTab refreshKey={refreshKey} />}
           {active === 'broadcast' && <BroadcastTab refreshKey={refreshKey} />}
           {active === 'notifications' && <NotificationsTab refreshKey={refreshKey} />}
+          {active === 'impersonate' && <ImpersonateTab refreshKey={refreshKey} />}
           {active === 'feature-flags' && <FeatureFlagsTab refreshKey={refreshKey} />}
           {active === 'webhooks' && <WebhooksTab refreshKey={refreshKey} />}
+          {active === 'ip-blocklist' && <IpBlocklistTab refreshKey={refreshKey} />}
           {active === 'settings' && <SettingsTab refreshKey={refreshKey} />}
           {active === 'audit-logs' && <AuditLogsTab refreshKey={refreshKey} />}
           {active === 'health' && <HealthTab refreshKey={refreshKey} />}

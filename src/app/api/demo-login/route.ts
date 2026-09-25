@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { setSessionCookie } from '@/lib/session'
 import { CONFIG } from '@/lib/config'
+import { logActivity } from '@/lib/activity/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -67,6 +68,14 @@ export async function POST() {
   // domain (which won't reach the browser on Vercel), but we capture the token
   // and return it so the frontend can redirect to /set-session.
   const sessionToken = await setSessionCookie(user.id)
+
+  await logActivity({
+    userId: user.id,
+    username: user.username,
+    type: 'login',
+    category: 'user',
+    metadata: { method: 'demo' },
+  })
 
   return NextResponse.json({
     ok: true,

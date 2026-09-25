@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
 import { daemonSyncUser, daemonStopUserRpc } from '@/lib/daemon-bridge'
+import { logActivity } from '@/lib/activity/logger'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -65,6 +66,14 @@ export async function POST(req: Request) {
         await daemonSyncUser(session.userId)
       }
 
+      await logActivity({
+        userId: session.userId,
+        username: session.user.username,
+        type: 'rpc_enabled',
+        category: 'rpc',
+        metadata: { rpcConfigName: rpcConfig?.name },
+      })
+
       return NextResponse.json({
         ok: true,
         enabled: true,
@@ -106,6 +115,13 @@ export async function POST(req: Request) {
       if (session.discordAccessToken) {
         await daemonStopUserRpc(session.userId)
       }
+
+      await logActivity({
+        userId: session.userId,
+        username: session.user.username,
+        type: 'rpc_disabled',
+        category: 'rpc',
+      })
 
       return NextResponse.json({
         ok: true,

@@ -342,3 +342,32 @@ model WebhookDelivery {
   @@index([status])
   @@index([createdAt])
 }
+
+model IpBlock {
+  id        String   @id @default(cuid())
+  ip        String   @unique
+  reason    String?
+  blockedBy String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([ip])
+}
+
+model ActivityEvent {
+  id        String   @id @default(cuid())
+  userId    String?
+  username  String?
+  type      String
+  category  String   @default("user")
+  ip        String?
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([category])
+  @@index([createdAt])
+}

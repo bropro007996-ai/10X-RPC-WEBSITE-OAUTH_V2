@@ -340,3 +340,32 @@ model WebhookDelivery {
   @@index([status])
   @@index([createdAt])
 }
+
+model IpBlock {
+  id        String   @id @default(cuid())
+  ip        String   @unique
+  reason    String?
+  blockedBy String?  // admin userId who blocked
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive])
+  @@index([ip])
+}
+
+model ActivityEvent {
+  id        String   @id @default(cuid())
+  userId    String?  // null = system event
+  username  String?  // snapshot at event time
+  type      String   // login | logout | rpc_enabled | rpc_disabled | payment | signup | etc.
+  category  String   @default("user") // user | payment | rpc | admin | system
+  ip        String?
+  metadata  String?  // JSON
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([type])
+  @@index([category])
+  @@index([createdAt])
+}

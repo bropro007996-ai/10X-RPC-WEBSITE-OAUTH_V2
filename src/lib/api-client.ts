@@ -333,6 +333,27 @@ export interface AdminAnalytics {
   }
 }
 
+export interface AdminActivityEvent {
+  id: string
+  userId: string | null
+  username: string | null
+  type: string
+  category: string
+  ip: string | null
+  metadata: string | null
+  createdAt: string
+}
+
+export interface AdminIpBlock {
+  id: string
+  ip: string
+  reason: string | null
+  blockedBy: string | null
+  isActive: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const isGet = !init?.method || init.method.toUpperCase() === 'GET'
   const maxAttempts = isGet ? 3 : 1
@@ -627,6 +648,28 @@ export const api = {
   adminTestWebhook: (id: string) => fetchJson<{ ok: boolean; result: { status: string; statusCode: number | null; latencyMs: number; response: string } }>(
     '/api/admin/webhooks/test', { method: 'POST', body: JSON.stringify({ id }) }
   ),
+
+  adminImpersonate: (userId: string) => fetchJson<{ ok: boolean; message: string; user: { id: string; discordId: string; username: string; avatar: string | null }; expiresAt: string }>(
+    '/api/admin/impersonate', { method: 'POST', body: JSON.stringify({ userId }) }
+  ),
+  adminEndImpersonation: () => fetchJson<{ ok: boolean; message: string }>(
+    '/api/admin/impersonate', { method: 'DELETE' }
+  ),
+
+  adminActivity: (params?: { take?: number; skip?: number; category?: string; type?: string }) => {
+    const qs = new URLSearchParams()
+    if (params?.take) qs.set('take', String(params.take))
+    if (params?.skip) qs.set('skip', String(params.skip))
+    if (params?.category) qs.set('category', params.category)
+    if (params?.type) qs.set('type', params.type)
+    return fetchJson<{ ok: boolean; events: AdminActivityEvent[]; total: number; take: number; skip: number; types: Array<{ type: string; count: number }> }>(`/api/admin/activity?${qs}`)
+  },
+
+  adminIpBlocklist: () => fetchJson<{ ok: boolean; blocks: AdminIpBlock[]; activeCount: number }>('/api/admin/ip-blocklist'),
+  adminAddIpBlock: (ip: string, reason?: string) => fetchJson<{ ok: boolean; block: AdminIpBlock }>(
+    '/api/admin/ip-blocklist', { method: 'POST', body: JSON.stringify({ ip, reason }) }
+  ),
+  adminRemoveIpBlock: (id: string) => fetchJson<{ ok: boolean }>(`/api/admin/ip-blocklist?id=${id}`, { method: 'DELETE' }),
 
   adminPlans: () => fetchJson<{ ok: boolean; plans: AdminPlan[] }>('/api/plans?all=true'),
   adminCreatePlan: (data: {
