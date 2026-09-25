@@ -1676,3 +1676,32 @@ Stage Summary:
 
 ⚠️ SECURITY: All credentials shared in chat were used for deployment but should be ROTATED immediately:
 - GitHub PAT, Vercel token, Render API key, Discord bot token + client secret
+
+---
+Task ID: admin-menu-enhance-1
+Agent: Z.ai Code (main)
+Task: Add a menu for the admin panel and check and test and update
+
+Work Log:
+- Enhanced the existing 20-tab admin menu with search + category grouping:
+  * Added search input at top of sidebar (filter tabs by label, description, or id)
+  * Keyboard shortcut: '/' focuses search input, Escape clears it
+  * Grouped 20 tabs into 5 collapsible categories:
+    - Insights (Overview, Analytics, Activity) — 3 tabs
+    - Users & Billing (Users, Payments, Subscriptions, Plans) — 4 tabs
+    - Communication (Announcements, Broadcast, Notifications) — 3 tabs
+    - Security (Impersonate, Feature Flags, Webhooks, IP Blocklist, API Keys) — 5 tabs
+    - System (Maintenance, Export, Settings, Audit Logs, System Health) — 5 tabs
+  * Categories are collapsible — click header to expand/collapse
+  * Search results show flat list (no categories) for quick access
+  * Mobile: added search input above the horizontal pills + pills now use filtered results
+- Fixed local dev: switched schema back to SQLite + regenerated Prisma client (was left in Postgres mode from earlier deployment)
+- Committed (3e3857e) and deployed to Vercel production (https://www.10xrpc.shop)
+
+Verification:
+- ESLint: 0 errors, 0 warnings ✓
+- Production https://www.10xrpc.shop/ → HTTP 200 ✓
+- Production https://www.10xrpc.shop/admin → HTTP 200 ✓
+- All admin endpoints live (401 unauth = correct) ✓
+- No hydration errors ✓
+- Local dev server works with SQLite ✓
