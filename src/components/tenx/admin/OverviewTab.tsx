@@ -226,7 +226,7 @@ export function OverviewTab({ refreshKey }: OverviewTabProps) {
       {/* Bulk Actions */}
       <AdminCard>
         <AdminSectionTitle icon={<Power className="w-4 h-4" />}>Bulk Control</AdminSectionTitle>
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
           <button
             onClick={handleForceEnable}
             disabled={busy}

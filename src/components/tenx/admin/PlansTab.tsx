@@ -158,7 +158,7 @@ export function PlansTab({ refreshKey }: PlansTabProps) {
   return (
     <div className="space-y-4">
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         <div className="glass-card-inner p-3 text-center">
           <div className="text-lg font-bold text-purple-300">{plans.length}</div>
           <div className="text-[10px] uppercase tracking-wider text-white/40">Total</div>
@@ -222,7 +222,7 @@ export function PlansTab({ refreshKey }: PlansTabProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <div>
                 <label className="text-[10px] uppercase tracking-wider text-purple-400 font-semibold block mb-1">Price (paise)</label>
                 <input

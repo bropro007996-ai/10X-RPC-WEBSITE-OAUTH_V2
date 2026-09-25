@@ -158,6 +158,11 @@
 .styled-scroll::-webkit-scrollbar-thumb { background: rgba(168, 85, 247, 0.4); border-radius: 2px; }
 .styled-scroll::-webkit-scrollbar-thumb:hover { background: rgba(168, 85, 247, 0.6); }
 
+/* iOS safe area for bottom nav bars */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
 /* Toggle switch styling */
 .toggle-track {
   background: rgba(255, 255, 255, 0.1);
