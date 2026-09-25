@@ -293,3 +293,50 @@ model Plan {
   @@index([isActive])
   @@index([displayOrder])
 }
+
+model FeatureFlag {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  label       String
+  description String?
+  enabled     Boolean  @default(false)
+  category    String   @default("general") // general | payments | rpc | beta | security
+  updatedAt   DateTime @updatedAt
+  createdAt   DateTime @default(now())
+
+  @@index([category])
+  @@index([enabled])
+}
+
+model Webhook {
+  id          String   @id @default(cuid())
+  url         String
+  secret      String?
+  events      String   @default("[]") // JSON array of event names
+  isActive    Boolean  @default(true)
+  description String?
+  lastTriggeredAt DateTime?
+  lastStatus  String?  // success | failed | pending
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  deliveries  WebhookDelivery[]
+
+  @@index([isActive])
+}
+
+model WebhookDelivery {
+  id          String   @id @default(cuid())
+  webhookId   String
+  webhook     Webhook @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event       String
+  payload     String   // JSON
+  statusCode  Int?
+  response    String?
+  status      String   @default("pending") // pending | success | failed
+  createdAt   DateTime @default(now())
+
+  @@index([webhookId])
+  @@index([status])
+  @@index([createdAt])
+}

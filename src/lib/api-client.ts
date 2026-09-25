@@ -271,6 +271,68 @@ export interface AdminNotificationLog {
   } | null
 }
 
+export interface AdminFeatureFlag {
+  id: string
+  key: string
+  label: string
+  description: string | null
+  enabled: boolean
+  category: string
+  updatedAt: string
+  createdAt: string
+}
+
+export interface AdminWebhook {
+  id: string
+  url: string
+  secret: string | null
+  hasSecret: boolean
+  events: string[]
+  isActive: boolean
+  description: string | null
+  lastTriggeredAt: string | null
+  lastStatus: string | null
+  deliveryCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminAnalytics {
+  ok: boolean
+  days: number
+  timeSeries: Array<{
+    date: string
+    signups: number
+    revenue: number
+    payments: number
+    notifications: number
+  }>
+  planBreakdown: Array<{ plan: string; count: number }>
+  subStatusBreakdown: Array<{ status: string; count: number }>
+  recentUsers: Array<{
+    id: string
+    username: string
+    discordId: string
+    avatar: string | null
+    createdAt: string
+  }>
+  topPayments: Array<{
+    id: string
+    amount: number
+    currency: string
+    planName: string
+    createdAt: string
+    user: { id: string; username: string; discordId: string; avatar: string | null } | null
+  }>
+  summary: {
+    totalUsers: number
+    totalPayments: number
+    totalRevenue: number
+    totalSubs: number
+    activeSubs: number
+  }
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const isGet = !init?.method || init.method.toUpperCase() === 'GET'
   const maxAttempts = isGet ? 3 : 1
@@ -546,6 +608,25 @@ export const api = {
     if (params?.unreadOnly) qs.set('unread', 'true')
     return fetchJson<{ ok: boolean; notifications: AdminNotificationLog[]; total: number; unread: number }>(`/api/admin/notifications?${qs}`)
   },
+
+  adminAnalytics: (days: number = 30) => fetchJson<AdminAnalytics>(`/api/admin/analytics?days=${days}`),
+
+  adminFeatureFlags: () => fetchJson<{ ok: boolean; flags: AdminFeatureFlag[] }>('/api/admin/feature-flags'),
+  adminUpdateFeatureFlag: (key: string, data: { enabled?: boolean; label?: string; description?: string }) => fetchJson<{ ok: boolean; flag: AdminFeatureFlag }>(
+    '/api/admin/feature-flags', { method: 'PUT', body: JSON.stringify({ key, ...data }) }
+  ),
+
+  adminWebhooks: () => fetchJson<{ ok: boolean; webhooks: AdminWebhook[]; availableEvents: string[] }>('/api/admin/webhooks'),
+  adminCreateWebhook: (data: { url: string; secret?: string; events?: string[]; isActive?: boolean; description?: string }) => fetchJson<{ ok: boolean; webhook: AdminWebhook }>(
+    '/api/admin/webhooks', { method: 'POST', body: JSON.stringify(data) }
+  ),
+  adminUpdateWebhook: (data: { id: string; url?: string; secret?: string | null; events?: string[]; isActive?: boolean; description?: string }) => fetchJson<{ ok: boolean; webhook: AdminWebhook }>(
+    '/api/admin/webhooks', { method: 'PUT', body: JSON.stringify(data) }
+  ),
+  adminDeleteWebhook: (id: string) => fetchJson<{ ok: boolean }>(`/api/admin/webhooks?id=${id}`, { method: 'DELETE' }),
+  adminTestWebhook: (id: string) => fetchJson<{ ok: boolean; result: { status: string; statusCode: number | null; latencyMs: number; response: string } }>(
+    '/api/admin/webhooks/test', { method: 'POST', body: JSON.stringify({ id }) }
+  ),
 
   adminPlans: () => fetchJson<{ ok: boolean; plans: AdminPlan[] }>('/api/plans?all=true'),
   adminCreatePlan: (data: {

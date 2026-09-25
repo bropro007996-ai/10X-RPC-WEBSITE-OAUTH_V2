@@ -1475,3 +1475,49 @@ Stage Summary:
 - All write operations (create/update/delete/grant/broadcast) verified end-to-end
 - Sticky layout: sidebar is lg:sticky top-4 on desktop, horizontal scrollable pills on mobile
 - Active tab persists in URL hash (#admin-<tab>) for shareable URLs and refresh persistence
+
+---
+Task ID: admin-more-features-1
+Agent: Z.ai Code (main)
+Task: Admin panel add more features and check/test/update
+
+Work Log:
+- Added 3 new Prisma models to both schema.prisma (SQLite) and schema.prod.prisma (Postgres):
+  * FeatureFlag (key, label, description, enabled, category)
+  * Webhook (url, secret, events JSON, isActive, description, lastTriggeredAt, lastStatus)
+  * WebhookDelivery (webhookId relation, event, payload, statusCode, response, status)
+- Ran `bun run db:push` to sync SQLite DB; updated schema.sqlite.bak.
+- Created 4 new API endpoints:
+  * GET /api/admin/analytics?days=N — returns 30/60/90-day time-series (signups, revenue, payments, notifications per day), plan breakdown, sub status breakdown, recent users, top payments, summary totals
+  * GET/PUT /api/admin/feature-flags — auto-creates 10 default flags on first access (maintenance_mode, disable_new_signups, disable_demo_login, disable_payments, disable_status_rotator, force_rpc_for_all, beta_features, beta_games_rpc, require_email_verify, log_all_actions); PUT toggles by key
+  * GET/POST/PUT/DELETE /api/admin/webhooks — full CRUD with 14 available events (user.signup, payment.verified, subscription.expired, etc.); secret is masked in responses
+  * POST /api/admin/webhooks/test — sends a real test payload to the webhook URL, records delivery in WebhookDelivery table, returns status/statusCode/latencyMs/response
+- Added typed interfaces to api-client.ts: AdminFeatureFlag, AdminWebhook, AdminAnalytics
+- Added 9 new api-client methods: adminAnalytics, adminFeatureFlags, adminUpdateFeatureFlag, adminWebhooks, adminCreateWebhook, adminUpdateWebhook, adminDeleteWebhook, adminTestWebhook
+- Built 3 new tab components:
+  * AnalyticsTab.tsx — Recharts visualizations (area chart for signups, bar chart for revenue, pie charts for plan distribution + sub status), KPI cards, recent signups list, top payments list, day-range selector (7/14/30/60/90)
+  * FeatureFlagsTab.tsx — flags grouped by category (general/payments/rpc/beta/security), each with toggle switch, label, description, last-updated timestamp; summary stats (total/enabled/disabled)
+  * WebhooksTab.tsx — full CRUD form (URL, secret, events multi-select, description, active toggle), test button that actually fires a test request and shows status code + latency + response, per-webhook delivery count, last-triggered info
+- Updated AdminShell.tsx: added 3 new tabs to the TABS array (Analytics, Feature Flags, Webhooks) + render lines. Menu now has 14 tabs total.
+
+Verification:
+- ESLint: 0 errors, 0 warnings ✓
+- All 3 new endpoints return HTTP 200 with valid data when authenticated ✓
+- All 3 new endpoints return HTTP 401 when unauthenticated ✓
+- Analytics: returned 30 time-series data points, plan breakdown, 1 recent user, correct summary ✓
+- Feature Flags: 10 default flags auto-created on first GET ✓
+- Feature flag toggle (PUT beta_features → true): updated successfully ✓
+- Webhook create (POST to https://httpbin.org/post with 2 events + secret): created ✓
+- Webhook list: showed 1 webhook with correct events + hasSecret=true ✓
+- Webhook test delivery: actually sent HTTP POST to httpbin.org, returned status=success, statusCode=200, latencyMs=1392 ✓
+- Webhook delete: removed successfully ✓
+- /admin page renders: 31KB HTML, _next bundle loads, no hydration errors ✓
+- Dev log: no runtime errors ✓
+- Admin config reverted to original (removed temp demo-user-10x) ✓
+
+Stage Summary:
+- Admin panel expanded from 11 tabs → 14 tabs
+- 3 genuinely new features added: Analytics (visual charts), Feature Flags (global toggles), Webhooks (outgoing integrations with live test)
+- 3 new Prisma models + 4 new API endpoints + 3 new tab components
+- All write operations verified end-to-end including a real webhook delivery to httpbin.org
+- Recharts library utilized for the first time in the project (was installed but unused)
