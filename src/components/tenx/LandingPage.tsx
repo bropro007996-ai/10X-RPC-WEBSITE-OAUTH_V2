@@ -4,26 +4,28 @@ import { PrimaryButton, GhostButton } from './ui'
 import { useRouter } from './useRouter'
 import { useEffect, useState } from 'react'
 import { toast } from 'sonner'
-import { api, type Me } from '@/lib/api-client'
+import { api, type Me, type AdminPlan } from '@/lib/api-client'
 
 export function LandingPage() {
   const { navigate } = useRouter()
   const [me, setMe] = useState<Me | null>(null)
+  const [plans, setPlans] = useState<AdminPlan[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Check for OAuth error in URL hash (e.g. #/?error=invalid_scope)
+    // Check for OAuth error in URL query params (e.g. ?error=invalid_scope)
     if (typeof window !== 'undefined') {
-      const hash = window.location.hash
-      const errorMatch = hash.match(/[?&]error=([^&]+)/)
-      if (errorMatch) {
-        const errMsg = decodeURIComponent(errorMatch[1])
-        toast.error(`OAuth error: ${errMsg}`, { duration: 6000 })
+      const params = new URLSearchParams(window.location.search)
+      const errorParam = params.get('error')
+      if (errorParam) {
+        toast.error(`OAuth error: ${decodeURIComponent(errorParam)}`, { duration: 6000 })
         // Clear the error from URL
-        window.location.hash = ''
+        window.history.replaceState({}, '', '/')
       }
     }
     api.me().then(m => { setMe(m); setLoading(false) }).catch(() => setLoading(false))
+    // Fetch dynamic plans from DB
+    api.publicPlans().then(r => setPlans(r.plans)).catch(() => {})
   }, [])
 
   const onStart = () => {
@@ -36,7 +38,7 @@ export function LandingPage() {
       {/* Nav */}
       <nav className="flex items-center justify-between px-4 sm:px-8 py-4 sm:py-6">
         <div className="flex items-center gap-2">
-          <div className="w-9 h-9 rounded-xl purple-gradient flex items-center justify-center font-black text-white">10</div>
+          <img src="/logo.png" alt="10X RPC" className="w-9 h-9 rounded-xl object-cover" />
           <span className="text-lg sm:text-xl font-bold text-white">10X RPC</span>
         </div>
         <div className="flex items-center gap-2">
@@ -115,41 +117,28 @@ export function LandingPage() {
           </div>
 
           <div className="space-y-4">
-            {/* Trial */}
-            <PricingCard
-              name="Trial"
-              price="$0"
-              period="/ 30 Days"
-              features={['Full feature access', '30 Days validity']}
-              cta="Try Now"
-              ctaStyle="ghost"
-              onCta={onStart}
-            />
-
-            {/* Pro (3 Months) */}
-            <PricingCard
-              name="Pro (3 Months)"
-              price="$4"
-              originalPrice="$5"
-              period="/ 3 Mo"
-              badge="20% OFF"
-              features={['Full feature Access', 'Priority Support', 'Game RPC Requests', 'Custom discord role']}
-              cta="Buy Now"
-              ctaStyle="primary"
-              highlighted
-              onCta={onStart}
-            />
-
-            {/* Plus (1 Month) */}
-            <PricingCard
-              name="Plus (1 Month)"
-              price="$2"
-              period="/ 1 Mo"
-              features={['Full feature access', 'Standard Support', 'Basic discord role']}
-              cta="Buy Now"
-              ctaStyle="ghost"
-              onCta={onStart}
-            />
+            {plans.length === 0 ? (
+              <p className="text-center text-white/40 py-8">Loading plans...</p>
+            ) : (
+              plans.map(plan => {
+                const isTrial = plan.priceInr === 0 || plan.slug === 'trial'
+                return (
+                  <PricingCard
+                    key={plan.id}
+                    name={plan.name}
+                    price={plan.effectivePriceDisplay}
+                    originalPrice={plan.offerActive ? plan.originalPriceDisplay ?? undefined : undefined}
+                    period={`/ ${plan.durationDays} ${plan.durationUnit === 'days' ? (plan.durationDays > 1 ? 'Days' : 'Day') : plan.durationUnit}`}
+                    badge={plan.offerActive ? (plan.pricing.offerTag ?? `${plan.discountPercent}% OFF`) : plan.badge ?? undefined}
+                    features={plan.features}
+                    cta={isTrial ? 'Try Now' : 'Buy Now'}
+                    ctaStyle={plan.isPopular || plan.isRecommended ? 'primary' : 'ghost'}
+                    highlighted={plan.isPopular || plan.isRecommended}
+                    onCta={onStart}
+                  />
+                )
+              })
+            )}
           </div>
         </div>
       </section>

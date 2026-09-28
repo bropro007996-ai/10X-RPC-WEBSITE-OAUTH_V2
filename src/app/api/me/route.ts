@@ -4,6 +4,7 @@ import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
 import { avatarUrl } from '@/lib/discord-oauth'
 import { CONFIG } from '@/lib/config'
+import { getSubscriptionStatus } from '@/lib/subscription'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,18 +19,15 @@ export async function GET() {
     let trial: any = null
     let globalConfig: any = null
     let rpcConfig: any = null
-    let rotatorPresets: any[] = []
+    let gameRpcConfig: any = null
 
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        [trial, globalConfig, rpcConfig, rotatorPresets] = await Promise.all([
+        [trial, globalConfig, rpcConfig, gameRpcConfig] = await Promise.all([
           db.trial.findUnique({ where: { userId: session.userId } }),
           db.globalConfig.findUnique({ where: { userId: session.userId } }),
           db.rpcConfig.findFirst({ where: { userId: session.userId } }),
-          db.rotatorPreset.findMany({
-            where: { userId: session.userId },
-            orderBy: { order: 'asc' },
-          }),
+          db.gameRpcConfig.findUnique({ where: { userId: session.userId } }),
         ])
         if (!rpcConfig) {
           rpcConfig = await db.rpcConfig.create({
@@ -91,6 +89,7 @@ export async function GET() {
     session: {
       statusEnabled: session.statusEnabled ?? false,
       rpcEnabled: rpcConfig ? (rpcConfig.enabled && session.rpcEnabled) : session.rpcEnabled,
+      gamesRpcEnabled: gameRpcConfig ? (gameRpcConfig.enabled && session.gamesRpcEnabled) : session.gamesRpcEnabled,
       gatewayReady: session.gatewayReady,
       userStatus: session.userStatus,
       customStatus: session.customStatus,
@@ -111,8 +110,6 @@ export async function GET() {
     globalConfig: globalConfig ? {
       city: globalConfig.city,
       timezone: globalConfig.timezone,
-      rotatorEnabled: globalConfig.rotatorEnabled,
-      rotatorIntervalMins: globalConfig.rotatorIntervalMins,
     } : null,
     rpcConfig: rpcConfig ? {
       id: rpcConfig.id,
@@ -137,19 +134,30 @@ export async function GET() {
       endTotalMins: rpcConfig.endTotalMins,
       enabled: rpcConfig.enabled && session.rpcEnabled,
     } : null,
-    rotatorPresets: rotatorPresets.map(p => ({
-      id: p.id,
-      emoji: p.emoji,
-      text: p.text,
-      durationMins: p.durationMins,
-      enabled: p.enabled,
-      order: p.order,
-    })),
-    rotatorEnabled: globalConfig?.rotatorEnabled ?? false,
+    gameRpcConfig: gameRpcConfig ? {
+      id: gameRpcConfig.id,
+      gameSlug: gameRpcConfig.gameSlug,
+      enabled: gameRpcConfig.enabled && session.gamesRpcEnabled,
+      state: gameRpcConfig.state,
+      details: gameRpcConfig.details,
+      largeImage: gameRpcConfig.largeImage,
+      largeText: gameRpcConfig.largeText,
+      smallImage: gameRpcConfig.smallImage,
+      smallText: gameRpcConfig.smallText,
+      button1Label: gameRpcConfig.button1Label,
+      button1Url: gameRpcConfig.button1Url,
+      button2Label: gameRpcConfig.button2Label,
+      button2Url: gameRpcConfig.button2Url,
+      partyCurrent: gameRpcConfig.partyCurrent,
+      partyMax: gameRpcConfig.partyMax,
+      startMinsAgo: gameRpcConfig.startMinsAgo,
+      endTotalMins: gameRpcConfig.endTotalMins,
+    } : null,
     app: {
       name: CONFIG.app.name,
       tagline: CONFIG.app.tagline,
     },
+    subscription: await getSubscriptionStatus(session.userId),
   })
   } catch (err) {
     console.error('Unhandled error in /api/me:', err)

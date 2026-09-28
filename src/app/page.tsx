@@ -1,15 +1,14 @@
-// 10X RPC — single-page app with hash-based routing
+// 10X RPC — single-page app with path-based routing
 'use client'
 import { useEffect, useState } from 'react'
 import { useRouter } from '@/components/tenx/useRouter'
 import { LandingPage } from '@/components/tenx/LandingPage'
 import { DashboardPage } from '@/components/tenx/DashboardPage'
-import { GamesPage } from '@/components/tenx/GamesPage'
-import { GameConfigPage } from '@/components/tenx/GameConfigPage'
 import { GlobalConfigPage } from '@/components/tenx/GlobalConfigPage'
-import { StatusRotatorPage } from '@/components/tenx/StatusRotatorPage'
 import { OAuthConsentPage } from '@/components/tenx/OAuthConsentPage'
 import { AdminPage } from '@/components/tenx/AdminPage'
+import { ProfilePage } from '@/components/tenx/ProfilePage'
+import { CheckoutPage } from '@/components/tenx/CheckoutPage'
 import { api, type Me } from '@/lib/api-client'
 
 export default function Home() {
@@ -31,9 +30,9 @@ export default function Home() {
   if (route.name === 'home') return <LandingPage />
   if (route.name === 'oauth-consent') return <OAuthConsentPage />
   if (route.name === 'dashboard') return <DashboardPage />
+  if (route.name === 'profile') return <ProfilePage initial={me || undefined} />
   if (route.name === 'admin') return <AdminPage />
-  if (route.name === 'games') return <GamesPage />
-  if (route.name === 'game') return <GameConfigPage slug={route.slug} />
+  if (route.name === 'checkout') return <CheckoutPage initial={me || undefined} />
   if (route.name === 'config') {
     return (
       <GlobalConfigPage
@@ -42,8 +41,6 @@ export default function Home() {
       />
     )
   }
-  if (route.name === 'rotator') {
-    return <StatusRotatorPage initial={me || undefined} />
-  }
+
   return <LandingPage />
 }

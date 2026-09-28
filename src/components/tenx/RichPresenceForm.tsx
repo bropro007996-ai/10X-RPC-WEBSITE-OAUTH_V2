@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { api, type RpcConfig } from '@/lib/api-client'
 import { PurpleSwitch } from './ui'
 import { ACTIVITY_TYPES, PLATFORMS, PLATFORM_GROUPS } from '@/lib/constants'
-import { Gamepad2, ChevronDown, ChevronsDown } from 'lucide-react'
+import { Gamepad2, ChevronDown } from 'lucide-react'
 
 const DEFAULT_CONFIG: RpcConfig = {
   name: '10X RPC',
@@ -31,17 +31,17 @@ const DEFAULT_CONFIG: RpcConfig = {
 }
 
 export function RichPresenceForm({
-  initial, onSaved, onToggle, onGameRpcClick, onChange,
+  initial, rpcEnabled, onSaved, onToggle, onChange,
 }: {
   initial: RpcConfig | null | undefined
+  rpcEnabled: boolean
   onSaved?: () => void
   onToggle?: (v: boolean) => void
-  onGameRpcClick?: () => void
   onChange?: (cfg: RpcConfig) => void
 }) {
   const [cfg, setCfg] = useState<RpcConfig>(initial || DEFAULT_CONFIG)
   const [saving, setSaving] = useState(false)
-  const [enabled, setEnabled] = useState(initial?.enabled ?? false)
+  const [enabled, setEnabled] = useState(rpcEnabled)
 
   const [platformOpen, setPlatformOpen] = useState(false)
   const [typeOpen, setTypeOpen] = useState(false)
@@ -84,11 +84,12 @@ export function RichPresenceForm({
         partySecret: initial.partySecret ?? '',
         startMinsAgo: initial.startMinsAgo ?? 0,
         endTotalMins: initial.endTotalMins ?? null,
-        enabled: initial.enabled ?? false,
+        enabled: rpcEnabled,
       })
-      setEnabled(initial.enabled ?? false)
     }
-  }, [initial])
+    // Sync the toggle state with the backend's rpcEnabled (source of truth)
+    setEnabled(rpcEnabled)
+  }, [initial, rpcEnabled])
 
   const set = <K extends keyof RpcConfig>(key: K, value: RpcConfig[K]) => {
     setCfg(prev => {
@@ -164,7 +165,7 @@ export function RichPresenceForm({
         <div className="absolute -top-16 right-0 w-48 h-48 bg-purple-900/10 rounded-full blur-2xl pointer-events-none" />
 
         {/* Centered Card Title: 🎮 Rich Presence */}
-        <div className="relative z-10 flex items-center justify-center gap-2.5 mb-7 pt-1">
+        <div className="relative z-10 flex items-center justify-center gap-2.5 mb-5 pt-1">
           <Gamepad2 className="w-6 h-6 text-purple-400 stroke-[2.2]" />
           <h2 className="text-2xl font-bold text-white tracking-tight">Rich Presence</h2>
         </div>
@@ -404,12 +405,6 @@ export function RichPresenceForm({
             />
           </FormField>
 
-          {/* Button visibility note */}
-          <div className="col-span-full -mt-1 mb-1 flex items-center gap-2 text-xs text-white/50 bg-purple-500/10 border border-purple-500/20 rounded-xl px-3.5 py-2.5">
-            <span>ℹ️</span>
-            <span><strong>Discord Button Visibility:</strong> Buttons are displayed on your profile when <em>other users/friends</em> view your profile. Discord client intentionally hides buttons when you view your own profile.</span>
-          </div>
-
           {/* 14. PARTY SIZE */}
           <FormField label="PARTY SIZE">
             <input
@@ -504,38 +499,6 @@ export function RichPresenceForm({
           </div>
         </div>
       </div>
-
-      {/* === "want something cool ?" & TRY GAME RPC NOW (Matches Screenshot 2) === */}
-      {onGameRpcClick && (
-        <div className="text-center pt-2 pb-6 space-y-4">
-          <div className="space-y-1 font-['Comic_Sans_MS',_'Chalkboard_SE',_'Comic_Neue',_cursive,_sans-serif]">
-            <p className="text-3xl sm:text-4xl text-white font-normal tracking-wide">
-              want something cool
-            </p>
-            <p className="text-3xl sm:text-4xl text-white font-normal">
-              ?
-            </p>
-          </div>
-
-          <div className="flex justify-center py-1">
-            <ChevronsDown className="w-8 h-8 text-purple-400 stroke-[2.5] animate-bounce" />
-          </div>
-
-          {/* Giant Game RPC Button */}
-          <button
-            type="button"
-            onClick={onGameRpcClick}
-            className="w-full py-7 px-4 rounded-[28px] bg-gradient-to-r from-[#221b36] via-[#352554] to-[#221b36] border border-purple-500/35 hover:border-purple-400/60 shadow-2xl shadow-purple-950/50 text-center transition-all cursor-pointer group active:scale-[0.99]"
-          >
-            <div className="text-2xl sm:text-3xl font-black tracking-wider text-purple-200 group-hover:text-white transition-colors">
-              TRY GAME RPC
-            </div>
-            <div className="text-2xl sm:text-3xl font-black tracking-wider text-purple-200 group-hover:text-white transition-colors mt-0.5">
-              NOW
-            </div>
-          </button>
-        </div>
-      )}
     </div>
   )
 }

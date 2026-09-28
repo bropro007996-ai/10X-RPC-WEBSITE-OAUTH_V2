@@ -1,4 +1,14 @@
 {
-  "framework": "nextjs",
-  "crons": []
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "regions": ["sin1"],
+  "crons": [
+    {
+      "path": "/api/keep-awake",
+      "schedule": "0 0 * * *"
+    },
+    {
+      "path": "/api/cron/check-subscriptions",
+      "schedule": "0 1 * * *"
+    }
+  ]
 }

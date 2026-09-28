@@ -2,7 +2,7 @@
 import { NextResponse } from 'next/server'
 import { getSession } from '@/lib/session'
 import { db } from '@/lib/db'
-import { ensureDaemonRunning } from '@/lib/rpc-daemon'
+import { daemonForcePush } from '@/lib/daemon-bridge'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 30
@@ -45,10 +45,11 @@ export async function POST(req: Request) {
         },
       })
 
-      // 4. Sync Gateway Daemon immediately
+      // 3. Force-push to daemon (disconnects + reconnects + pushes fresh state)
       if (session.discordAccessToken) {
-        const daemon = ensureDaemonRunning()
-        await daemon.syncUser(session.userId)
+        console.log(`[API /api/status/toggle] Force-pushing daemon for user ${session.userId} (status ENABLED)`)
+        const syncResult = await daemonForcePush(session.userId)
+        console.log(`[API /api/status/toggle] Daemon result:`, syncResult)
       }
 
       return NextResponse.json({
@@ -67,10 +68,11 @@ export async function POST(req: Request) {
         },
       })
 
-      // 2. Sync Gateway Daemon (if RPC is still on, RPC keeps running; if RPC is off, socket cleans up)
+      // 2. Force-push to daemon (clears custom status from Discord immediately)
       if (session.discordAccessToken) {
-        const daemon = ensureDaemonRunning()
-        await daemon.syncUser(session.userId)
+        console.log(`[API /api/status/toggle] Force-pushing daemon for user ${session.userId} (status DISABLED)`)
+        const syncResult = await daemonForcePush(session.userId)
+        console.log(`[API /api/status/toggle] Daemon result:`, syncResult)
       }
 
       return NextResponse.json({

@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { setSessionCookie } from '@/lib/session'
 import { CONFIG } from '@/lib/config'
+import { logActivity } from '@/lib/activity/logger'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,20 +54,20 @@ export async function POST() {
         endTotalMins: 30,
       },
     })
-    // Seed a couple of rotator presets
-    await db.rotatorPreset.createMany({
-      data: [
-        { userId: user.id, emoji: '🎮', text: 'Playing something', durationMins: 5, order: 0 },
-        { userId: user.id, emoji: '💻', text: 'Coding the future', durationMins: 5, order: 1 },
-        { userId: user.id, emoji: '☕', text: 'Coffee break', durationMins: 5, order: 2 },
-      ],
-    })
   }
 
   // Create session — setSessionCookie() also tries to set the cookie on Render's
   // domain (which won't reach the browser on Vercel), but we capture the token
   // and return it so the frontend can redirect to /set-session.
   const sessionToken = await setSessionCookie(user.id)
+
+  await logActivity({
+    userId: user.id,
+    username: user.username,
+    type: 'login',
+    category: 'user',
+    metadata: { method: 'demo' },
+  })
 
   return NextResponse.json({
     ok: true,

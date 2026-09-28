@@ -18,7 +18,7 @@ export const metadata: Metadata = {
   description: "Take control of your Discord presence. Custom status, rich presence, VR status, game RPC, smart sleep timer, dynamic placeholders, and 24/7 reliability.",
   keywords: ["10X RPC", "Discord RPC", "Rich Presence", "Discord status", "VR status", "Meta Quest"],
   authors: [{ name: "10X RPC" }],
-  icons: { icon: "/logo.svg" },
+  icons: { icon: "/logo.png", apple: "/logo.png" },
   openGraph: {
     title: "10X RPC",
     description: "Premium Discord Rich Presence management.",
@@ -38,6 +38,9 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning className="dark">
+      <head>
+        <script src="https://checkout.razorpay.com/v1/checkout.js" async></script>
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-[#0a0b0f] text-white min-h-screen`}
       >
