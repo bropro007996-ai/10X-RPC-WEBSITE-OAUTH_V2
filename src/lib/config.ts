@@ -6,8 +6,9 @@ export const CONFIG = {
     clientId: process.env.DISCORD_CLIENT_ID || '',
     clientSecret: process.env.DISCORD_CLIENT_SECRET || '',
     botToken: process.env.DISCORD_BOT_TOKEN || '',
-    // The redirect_uri MUST point to the Render backend (where /auth/callback runs).
-    // This must match what's registered in Discord Developer Portal.
+    // The redirect_uri MUST point to the FRONTEND (Vercel) — NOT the backend.
+    // The frontend handles the full OAuth callback (exchanges code, creates session).
+    // Hardcoded to prevent stale env vars from pointing to the wrong URL.
     redirectUri: 'https://www.10xrpc.shop/auth/discord/callback',
     // Gaming SDK scope — required for the Gaming SDK gateway connection.
     scope: process.env.DISCORD_OAUTH_SCOPE || 'openid identify sdk.social_layer_presence',
@@ -18,7 +19,7 @@ export const CONFIG = {
     // The Gaming SDK gateway (gateway.gaming-sdk.com) does NOT support custom images.
     gatewayUrl: process.env.DISCORD_GATEWAY_URL || 'wss://gateway.discord.gg/?v=10&encoding=json',
     serverId: process.env.DISCORD_SERVER_ID || '1549302358926823496',
-    inviteUrl: process.env.DISCORD_INVITE_URL || 'https://discord.gg/JjsPqbWnrH',
+    inviteUrl: process.env.DISCORD_INVITE_URL || 'https://discord.gg/jr27qeCZU',
   },
   app: {
     name: '10X RPC',
